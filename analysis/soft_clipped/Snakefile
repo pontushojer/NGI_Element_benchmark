@@ -1,0 +1,309 @@
+"""
+load modules:
+
+    ml bioinfo-tools snakemake
+
+sbatch command:
+    
+    sbatch -A ngi2016004 -J sc_reads -n 12 -p core -t 2:00:00 --wrap "snakemake -p -j 12 --use-singularity -k" --mail-user phojer@kth.se --mail-type ALL
+"""
+
+runs = [
+    "aviti_hq",
+    "aviti_ngi",
+    "xplus_sns"
+]
+
+cells = [
+    "KMS12BM",
+    "MM1S",
+    "OPM2",
+    "REH",
+]
+
+directions = ["forward", "reverse"]
+
+# From GIAB references
+fasta = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa"
+
+# From GIAB stratifications v3.5
+autosomal_bed = "../../resources/GRCh38@all/XY/GRCh38_AllAutosomes.bed.gz"
+
+# https://pqsfinder.fi.muni.cz/hub/hg38/pqsfinder_hg38.bed
+g4_bed = "../../resources/G4/pqsfinder_hg38.sort.bed"
+
+# Container
+samtools = "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
+bedtools_container = "/vulpes/ngi/containers/biocontainers/singularity-bedtools-2.30.0--hc088bd4_0.img"
+
+
+def get_cram(wildcards):
+    run = wildcards.run
+    cell = wildcards.cell
+    cram = f"../nfcore_sarek_rerun/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram",
+    crai = f"../nfcore_sarek_rerun/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram.crai",
+    return {"cram": cram, "crai": crai}
+
+
+wildcard_constraints:
+    run = "|".join(runs),
+    cell = "|".join(cells),
+    direction = "|".join(directions),
+    slop = "\\d+"
+
+
+rule all:
+    input:
+        expand("common_clip_sites.merged.all.{type}bed", type=["","diff.", "no_xplus.", "no_xplus.diff."]),
+        "stats.tsv",
+
+
+
+rule get_clipped_alignments:
+    input:
+        unpack(get_cram)
+    output:
+        temp("clipped_bases/{run}_{cell}.clipped.bam")
+    singularity: samtools
+    params:
+        fasta = fasta,
+        bed = autosomal_bed
+    threads: 4
+    shell:
+        "samtools view"
+        " -@ {threads}"
+        " -bh"
+        # Only autosomal chromosomes
+        " -L {params.bed}"
+        " -M"
+        " -T {params.fasta}"
+        # Only keep reads with mapping quality >= 60
+        " -q 60 {input.cram}"
+        # Remove:
+        # - reads with template length <= 150 since they are likely to contain adapter sequences
+        # - reads with less than 10 soft-clipped bases
+        " -e 'sclen>=10 && sqrt(pow(tlen, 2)) > 150 '"
+        " -o {output}"
+
+
+rule get_clipped_bed:
+    input:
+        bam = "clipped_bases/{run}_{cell}.clipped.bam"
+    output:
+        "clipped_bases/{run}_{cell}.clipped.bed"
+    singularity: bedtools_container
+    shell:
+        "bedtools bamtobed -i {input.bam}"
+        " | "
+        # Sort by chromosome and start position
+        "sort -k1,1 -k2,2n"
+        " > {output}"
+
+
+rule split_by_direction:
+    input:
+        bed = "clipped_bases/{run}_{cell}.clipped.bed"
+    output:
+        bed = "clipped_bases/{run}_{cell}.ends.{direction}.bed"
+    params:
+        direction = lambda wildcards: "+" if wildcards.direction == "forward" else "-"
+    shell:
+        "awk -v direction={params.direction} '$6 == direction' {input.bed}"
+        " > {output.bed}"
+
+
+rule get_common_clip_sites:
+    input:
+        bed = "clipped_bases/{run}_{cell}.ends.{direction}.bed"
+    output:
+        bed = "clipped_bases/{run}_{cell}.ends.{direction}.merged.bed"
+    singularity: bedtools_container
+    params:
+        fasta = fasta
+    shell:
+        # Extend by 10 bp in at end according to strand
+        "bedtools slop -i {input.bed} -g {params.fasta}.fai -l 0 -r 10 -s"
+        " | "
+        # Merge and count overlapping intervals
+        "bedtools merge -i stdin -c 1 -o count"
+        " | "
+        # Keep only those with count > 1
+        "awk '$4>1'"
+        " > {output.bed}"
+
+
+rule slop_sites:
+    input:
+        bed = "clipped_bases/{run}_{cell}.ends.{direction}.merged.bed"
+    output:
+        bed = "clipped_bases/{run}_{cell}.ends.{direction}.merged.slop{slop}.bed"
+    singularity: bedtools_container
+    params:
+        fasta = fasta
+    shell:
+        "bedtools slop -i {input.bed} -g {params.fasta}.fai -b {wildcards.slop}"
+        " | "
+        "bedtools merge -i stdin > {output.bed}"
+
+
+rule intersect_sites_over_cells:
+    input:
+        beds = expand("clipped_bases/{run}_{{cell}}.ends.{{direction}}.merged.bed", run=["aviti_ngi", "aviti_hq"])
+    output:
+        bed = temp("common_clip_sites.{cell}.{direction}.all.bed")
+    singularity: bedtools_container
+    params:
+        strand = lambda wc: "+" if wc.direction == "forward" else "-"
+    shell:
+        "bedtools multiinter -i {input.beds}"
+        " | "
+        "awk '$4 > 1'"
+        " | "
+        "bedtools merge -i stdin -c 4 -o max"
+        " | "
+        "awk -v strand={params.strand} '{{OFS=\"\\t\"; print $1, $2, $3, $4, \".\", strand}}'"
+        " > {output.bed}"
+
+
+rule intersect_sites_over_runs:
+    input:
+        beds = expand("common_clip_sites.{cell}.{{direction}}.all.bed", cell=cells)
+    output:
+        bed = temp("common_clip_sites.{direction}.all.bed")
+    singularity: bedtools_container
+    params:
+        strand = lambda wc: "+" if wc.direction == "forward" else "-"
+    shell:
+        "bedtools multiinter -i {input.beds}"
+        " | "
+        "awk '$4 > 1'"
+        " | "
+        "bedtools merge -i stdin -c 4 -o max"
+        " | "
+        "awk -v strand={params.strand} '{{OFS=\"\\t\"; print $1, $2, $3, $4, \".\", strand}}'"
+        " > {output.bed}"
+
+
+rule no_overlapping_xplus_sites:
+    input:
+        xplus_beds = expand("clipped_bases/xplus_sns_{cell}.ends.{{direction}}.merged.bed", cell=cells),
+        bed = "common_clip_sites.{direction}.all.bed"
+    output:
+        bed = temp("common_clip_sites.{direction}.all.no_xplus.bed")
+    singularity: bedtools_container
+    shell:
+        "cat {input.xplus_beds}"
+        " | "
+        "bedtools intersect -wa -a {input.bed} -b stdin"
+        " | "
+        "bedtools subtract -a {input.bed} -b stdin"
+        " > {output.bed}"
+
+
+rule concat_sites:
+    input:
+        bed_forward = "common_clip_sites.forward.all.bed",
+        bed_reverse = "common_clip_sites.reverse.all.bed"
+    output:
+        bed = "common_clip_sites.merged.all.bed"
+    singularity: bedtools_container
+    shell:
+        "cat {input.bed_forward} {input.bed_reverse}"
+        " | "
+        "sort -k1,1 -k2,2n"
+        " | "
+        "bedtools merge -i stdin -s -c 4,5,6 -o max,distinct,distinct"
+        " > {output.bed}"
+
+
+rule diff_sites:
+    input:
+        bed = "common_clip_sites.merged.all.bed",
+        bed_forward = "common_clip_sites.forward.all.bed",
+        bed_reverse = "common_clip_sites.reverse.all.bed"
+    output:
+        bed = "common_clip_sites.merged.all.diff.bed"
+    singularity: bedtools_container
+    shell:
+        "bedtools intersect -a {input.bed_forward} -b {input.bed_reverse}"
+        " | "
+        "bedtools subtract -a {input.bed} -b stdin -A"
+        " > {output.bed}"
+
+
+rule concat_sites_no_xplus:
+    input:
+        bed_forward = "common_clip_sites.forward.all.no_xplus.bed",
+        bed_reverse = "common_clip_sites.reverse.all.no_xplus.bed"
+    output:
+        bed = "common_clip_sites.merged.all.no_xplus.bed"
+    singularity: bedtools_container
+    shell:
+        "cat {input.bed_forward} {input.bed_reverse}"
+        " | "
+        "sort -k1,1 -k2,2n"
+        " | "
+        "bedtools merge -i stdin -s -c 4,5,6 -o max,distinct,distinct"
+        " > {output.bed}"
+
+
+rule diff_sites_no_xplus:
+    input:
+        bed = "common_clip_sites.merged.all.no_xplus.bed",
+        bed_forward = "common_clip_sites.forward.all.no_xplus.bed",
+        bed_reverse = "common_clip_sites.reverse.all.no_xplus.bed"
+    output:
+        bed = "common_clip_sites.merged.all.no_xplus.diff.bed"
+    singularity: bedtools_container
+    shell:
+        "bedtools intersect -a {input.bed_forward} -b {input.bed_reverse}"
+        " | "
+        "bedtools subtract -a {input.bed} -b stdin -A"
+        " > {output.bed}"
+
+
+rule concordance_g4:
+    input:
+        bed = "common_clip_sites.merged.{type}.bed",
+    output:
+        txt = temp("common_clip_sites.merged.{type}.bed.stats.{intersect}.txt")
+    singularity: bedtools_container
+    params:
+        g4_bed = g4_bed,
+        args = lambda wc: {'intersect': '', 'intersectss': '-s', 'intersectds': '-S'}[wc.intersect]
+    shell:
+        "bedtools intersect -a {input.bed} -b {params.g4_bed} -wa -u {params.args}"
+        " | wc -l | awk '{{print $1}}' > {output.txt}"
+
+
+rule concordance_g4_agg:
+    input:
+        bed = "common_clip_sites.merged.{type}.bed",
+        txt1 = "common_clip_sites.merged.{type}.bed.stats.intersect.txt",
+        txt2 = "common_clip_sites.merged.{type}.bed.stats.intersectss.txt",
+        txt3 = "common_clip_sites.merged.{type}.bed.stats.intersectds.txt",
+    output:
+        tsv = temp("common_clip_sites.merged.{type}.bed.stats.tsv"),
+    shell:
+        """
+        intersect=$(cat {input.txt1})
+        intersectss=$(cat {input.txt2})
+        intersectds=$(cat {input.txt3})
+        total=$(wc -l {input.bed} | awk '{{print $1}}')
+        fraction=$(echo "scale=2; $intersect / $total" | bc)
+        fractionss=$(echo "scale=2; $intersectss / $total" | bc)
+        fractionds=$(echo "scale=2; $intersectds / $total" | bc)
+        echo "{wildcards.type}\t$total\t$intersect\t$intersectss\t$intersectds\t$fraction\t$fractionss\t$fractionds" >> {output.tsv}        
+        """
+
+
+rule concordance_g4_concat:
+    input:
+        tsvs = expand("common_clip_sites.merged.all.{type}bed.stats.tsv", type=["","diff.", "no_xplus.", "no_xplus.diff."]),
+    output:
+        tsv = "stats.tsv",
+    shell:
+        """
+        echo "File\tTotals\tIntersect\tIntersect SS\tIntersecting DS\tIntersect fract\tIntersect SS fract\tIntersect DS fract" > {output.tsv}
+        cat {input.tsvs} >> {output.tsv}
+        """

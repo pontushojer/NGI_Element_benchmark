@@ -1,0 +1,187 @@
+"""
+load modules:
+
+    ml bioinfo-tools snakemake
+
+sbatch command:
+    
+    sbatch -A ngi2016004 -J stack_reads -n 48 -p core -t 10:00:00 --wrap "snakemake -p -j 48 --use-singularity -k --rerun-incomplete" --mail-user phojer@kth.se --mail-type ALL
+"""
+from pathlib import Path
+
+resources_dir = Path("/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources")
+code_dir = Path("/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/scripts")
+
+# From GIAB references
+fasta = resources_dir / "GRCh38_GIABv3/unbgzipped/genome.fa"
+
+runs = [
+    "aviti_hq",
+    "aviti_ngi",
+    "xplus_sns",
+]
+
+cells = [
+    "KMS12BM",
+    "MM1S",
+    "OPM2",
+    "REH",
+]
+
+regions = [
+    "GRCh38_SimpleRepeat_diTR_10to49_slop5",
+    "GRCh38_SimpleRepeat_diTR_50to149_slop5",
+    #"GRCh38_SimpleRepeat_diTR_ge150_slop5",
+    "GRCh38_SimpleRepeat_homopolymer_4to6_AT_slop5",
+    "GRCh38_SimpleRepeat_homopolymer_4to6_GC_slop5",
+    "GRCh38_SimpleRepeat_homopolymer_4to6_slop5",
+    "GRCh38_SimpleRepeat_homopolymer_7to11_AT_slop5",
+    "GRCh38_SimpleRepeat_homopolymer_7to11_GC_slop5",
+    "GRCh38_SimpleRepeat_homopolymer_7to11_slop5",
+    "GRCh38_SimpleRepeat_homopolymer_ge12_AT_slop5",
+    "GRCh38_SimpleRepeat_homopolymer_ge12_GC_slop5",
+    "GRCh38_SimpleRepeat_homopolymer_ge12_slop5",
+    "GRCh38_SimpleRepeat_homopolymer_ge21_AT_slop5",
+    "GRCh38_SimpleRepeat_homopolymer_ge21_GC_slop5",
+    "GRCh38_SimpleRepeat_homopolymer_ge21_slop5",
+    "GRCh38_SimpleRepeat_imperfecthomopolge11_AT_slop5",
+    "GRCh38_SimpleRepeat_imperfecthomopolge11_GC_slop5",
+    "GRCh38_SimpleRepeat_imperfecthomopolge11_slop5",
+    "GRCh38_SimpleRepeat_imperfecthomopolge21_AT_slop5",
+    "GRCh38_SimpleRepeat_imperfecthomopolge21_GC_slop5",
+    "GRCh38_SimpleRepeat_imperfecthomopolge21_slop5",
+    "GRCh38_SimpleRepeat_quadTR_19to49_slop5",
+    "GRCh38_SimpleRepeat_quadTR_50to149_slop5",
+    #"GRCh38_SimpleRepeat_quadTR_ge150_slop5",
+    "GRCh38_SimpleRepeat_triTR_14to49_slop5",
+    "GRCh38_SimpleRepeat_triTR_50to149_slop5",
+    #"GRCh38_SimpleRepeat_triTR_ge150_slop5",
+    ## CUSTOM REGIONS ##
+    "G4_pqsfinder",
+    "random_l50_n1000000", 
+    "random_l30_n1000000", # Control for G4_pqsfinder
+    "random_l20_n1000000", # Control for homopolymer_ge12
+    "random_l10_n1000000", 
+]
+
+# G4 motifs from PQSfinder
+# sourcehttps://pqsfinder.fi.muni.cz/hub/hg38/pqsfinder_hg38.gff
+g4_pqsfinder = resources_dir / "G4/pqsfinder_hg38.sort.bed.gz"
+
+# Containers
+avidity = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/envs/avidity.sif"
+samtools = "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
+bedtools_container = "/vulpes/ngi/containers/biocontainers/singularity-bedtools-2.30.0--hc088bd4_0.img"
+
+
+def get_bed(wildcards):
+    if wildcards.region == "G4_pqsfinder":
+        return g4_pqsfinder
+    elif "random" in wildcards.region:
+        return f"{wildcards.region}.bed.gz"
+    return resources_dir / f"GRCh38@all/LowComplexity/{wildcards.region}.bed.gz"
+
+
+def get_cram(wildcards):
+    run = wildcards.run
+    cell = wildcards.cell
+    cram = f"../nfcore_sarek_rerun/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram",
+    crai = f"../nfcore_sarek_rerun/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram.crai",
+    return {"cram": cram, "crai": crai}
+
+
+rule all:
+    input:
+        expand("{run}/{cell}/{region}.offset-error.tsv", run=runs, region = regions, cell = cells),
+        expand("{run}/{cell}/{region}.interval-error.tsv.gz", run=runs, region = regions, cell = cells),
+
+
+rule get_genome:
+    # Only chr1-22 + chrX + chrY
+    output:
+        "GRCh38.genome"
+    params:
+        fai = str(fasta) + ".fai"
+    shell:
+        "head -24 {params.fai} | cut -f -2 > {output}"        
+
+
+rule get_random:
+    input:
+        genome = "GRCh38.genome"
+    output:
+        bed = "random_l{len}_n{number}.bed.gz",
+    singularity: bedtools_container
+    shell:
+        "bedtools random"
+        " -g {input.genome}"
+        " -l {wildcards.len}"
+        " -n {wildcards.number}"
+        " | "
+        "cut -f -3"
+        " | "
+        "bedtools sort -i stdin"
+        " | "
+        "gzip -c > {output.bed}"
+
+
+rule get_overlapping_reads:
+    input:
+        unpack(get_cram),
+        bed = get_bed
+    output:
+        bam = temp("{run}/{cell}/{region}.bam"),
+        bai = temp("{run}/{cell}/{region}.bam.bai")
+    singularity: samtools
+    params:
+        fasta = fasta
+    shell:
+        "samtools view"
+        " -q 60" # MAPQ >= 60
+        " -bh"
+        " -M"
+        " -T {params.fasta}"
+        " -L {input.bed}"
+        " -o {output.bam}"
+        " {input.cram}"
+        " && "
+        "samtools index {output.bam}"
+
+
+rule stack_reads:
+    input:
+        bam = "{run}/{cell}/{region}.bam",
+        bai = "{run}/{cell}/{region}.bam.bai",
+        bed = get_bed
+    output:
+        out1 = temp(touch("{run}/{cell}/{region}.interval-error.tsv")), # This is quite large
+        out2 = "{run}/{cell}/{region}.offset-error.tsv"
+    log: "{run}/{cell}/{region}.log"
+    singularity: avidity
+    threads: 2
+    params:
+        prefix = "{run}/{cell}/{region}",
+        homopolymer = lambda wc: "--homopolymer" if "homopolymer" in wc.region  else "",
+        slop = lambda wc: 5 if "slop" in wc.region else 0,
+        script_path = code_dir / "AvidityManuscript2023/python/stack_reads_by_interval.py",
+        # Decrease analysis rate for short homopolymer regions as they are common
+        rate = lambda wc: "--rate 0.1" if "homopolymer_4to6" in wc.region else ""
+    shell:
+        "/opt/conda/envs/AvidityManuscript2023/bin/python {params.script_path}"
+        " --bam {input.bam}"
+        " --bed {input.bed}"
+        " -o {params.prefix}"
+        " --chr chr20"
+        " --slop {params.slop}"
+        " {params.homopolymer}"
+        " {params.rate}"
+        " &> {log}"
+
+
+rule gzip_tsv:
+    input:
+        tsv = "{run}/{cell}/{region}.interval-error.tsv"
+    output:
+        tsv = "{run}/{cell}/{region}.interval-error.tsv.gz"
+    shell:
+        "gzip -c {input.tsv} > {output.tsv}"

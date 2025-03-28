@@ -1,0 +1,14 @@
+input: aviti_ngi_samples.csv
+outdir: outdir
+seq_platform: ELEMENT
+seq_center: NGI_Stockholm
+trim_fastq: true
+tools: deepvariant
+aligner: bwa-mem
+no_gatk_spark: true
+fasta: /vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa
+fasta_fai: /vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa.fai
+igenomes_ignore: true
+bwa: /vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/
+email: pontus.hojer@scilifelab.se
+skip_tools: baserecalibrator,fastqc

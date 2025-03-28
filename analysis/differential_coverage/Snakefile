@@ -1,0 +1,235 @@
+
+"""
+Snakemake file for comparing coverage
+
+load modules:
+
+    ml bioinfo-tools snakemake
+
+sbatch command:
+    
+    sbatch -A ngi2016004 -J cov -n 24 -p core -t 1-00:00:00 --wrap "snakemake -p -j 24 --use-singularity -k --rerun-incomplete" --mail-user phojer@kth.se --mail-type ALL
+"""
+
+from pathlib import Path
+
+fasta = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa"
+stratification_tsv = Path("/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38@all/GRCh38-all-stratifications.select.tsv")
+
+runs=["aviti_hq", "aviti_ngi", "xplus_sns"]
+
+cells = [
+    "KMS12BM", 
+    "MM1S", 
+    "OPM2",
+    "REH"
+]
+
+# Containers
+d4tools = "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/clinicalgenomics-d4tools.sif"
+pandas = "/vulpes/ngi/containers/biocontainers/depot.galaxyproject.org-singularity-pandas-1.5.2.img"
+samtools = "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
+
+
+def parse_stratifications(tsv: Path):
+    base_path = tsv.parent
+    with open(tsv) as f:
+        for line in f:
+            name, relative_path = line.strip().split("\t")
+            path = base_path / relative_path
+            assert path.exists()
+            yield name, path
+
+
+stratification_paths = dict(parse_stratifications(stratification_tsv))
+
+def get_cram(wildcards):
+    run = wildcards.run
+    cell = wildcards.cell
+    cram = f"../nfcore_sarek_rerun/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram",
+    crai = f"../nfcore_sarek_rerun/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram.crai",
+    return {"cram": cram, "crai": crai}
+
+
+wildcard_constraints:
+    run="\\w+",
+    cell="\\w+",
+    stratification ="[a-zA-Z0-9_\\.]+"
+
+
+rule all:
+    input:
+        "multiqc_report.html",
+        expand("mosdepth/{run}_{cell}.per-base.d4", run=runs, cell=cells),
+        expand("histogram/{run}_{cell}.tsv", run=runs, cell=cells),
+
+
+rule picard_wgs_metrics:
+    input:
+        unpack(get_cram)
+    output:
+        txt = "picard/{run}_{cell}.collect_wgs_metrics.txt"
+    log: "picard/{run}_{cell}.collect_wgs_metrics.txt.log"
+    singularity: "/vulpes/ngi/containers/biocontainers/singularity-picard-3.0.0--hdfd78af_1.img"
+    params:
+        fasta = fasta
+    shell:
+        "picard CollectWgsMetrics"
+        " I={input.cram}"
+        " O={output.txt}"
+        " R={params.fasta}"
+        " &> {log}"
+
+
+rule picard_gc_bias:
+    input:
+        unpack(get_cram)
+    output:
+        txt1 = "picard/{run}_{cell}.gc_bias_metrics.txt",
+        txt2 = "picard/{run}_{cell}.gc_summary_metrics.txt",
+        pdf = "picard/{run}_{cell}.gc_bias_metrics.pdf"
+    log: "picard/{run}_{cell}.gc_bias_metrics.txt.log"
+    singularity: "/vulpes/ngi/containers/biocontainers/singularity-picard-3.0.0--hdfd78af_1.img"
+    params:
+        fasta = fasta
+    shell:
+        "picard CollectGcBiasMetrics"
+        " I={input.cram}"
+        " O={output.txt1}"
+        " CHART={output.pdf}"
+        " S={output.txt2}"
+        " R={params.fasta}"
+        " &> {log}"
+
+def get_fraction(wildcards, cov_aim=10):
+    coverage_file = f"../nfcore_sarek/{wildcards.run}/outdir/reports/mosdepth/{wildcards.cell}/{wildcards.cell}.md.mosdepth.summary.txt"
+    adjustment = 1.0 if wildcards.run != "xplus_sns" else 1.03 # Xplus has a higher duplication rate and lower MAPQ
+    with open(coverage_file) as f:
+        for line in f:
+            if line.startswith("total"):
+                mean_cov = float(line.strip().split("\t")[3])
+                return adjustment * cov_aim / mean_cov
+
+
+rule samtools_downsample:
+    input:
+        unpack(get_cram)
+    output:
+        bam = "downsample/{run}_{cell}.downsampled.bam",
+        bai = "downsample/{run}_{cell}.downsampled.bam.bai"
+    log: "downsample/{run}_{cell}.downsample.log"
+    singularity: samtools
+    threads: 4
+    params:
+        fraction = lambda wildcards: get_fraction(wildcards, cov_aim=10),
+        fasta = fasta
+    shell:
+        "samtools view"
+        " -@ {threads}"
+        " -s {params.fraction}"
+        " -T {params.fasta}"
+        " -bh"
+        " {input.cram}"
+        " -o {output.bam}"
+        " &> {log}"
+        " && "
+        "samtools index"
+        " {output.bam}"
+
+
+rule samtools_flagstat:
+    input:
+        bam = "downsample/{run}_{cell}.downsampled.bam",
+    output:
+        txt = "downsample/{run}_{cell}.downsampled.bam.flagstat.txt"
+    log: "downsample/{run}_{cell}.downsampled.bam.flagstat.txt.log"
+    singularity: samtools
+    shell:
+        "samtools flagstat"
+        " {input.bam}"
+        " > {output.txt}"
+        " &> {log}"
+
+
+rule mosdepth:
+    input:
+        bam = "downsample/{run}_{cell}.downsampled.bam",
+        bai = "downsample/{run}_{cell}.downsampled.bam.bai",
+    output:
+        txt = "mosdepth/{run}_{cell}.mosdepth.summary.txt",
+        d4 = "mosdepth/{run}_{cell}.per-base.d4",
+    log: "mosdepth/{run}_{cell}.mosdepth.log"
+    threads: 4
+    params:
+        prefix = "mosdepth/{run}_{cell}",
+        ref = fasta,
+        executable = "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/mosdepth_d4"
+    shell:
+        "MOSDEPTH_PRECISION=5 "
+        " {params.executable}"
+        " --threads {threads}"
+        " --fasta {params.ref}"
+        " --d4"
+        " -Q 60" # Minimum mapping quality of 60
+        " {params.prefix}"
+        " {input.bam}"
+        " &> {log}"
+
+
+rule multiqc:
+    input:
+        expand("picard/{run}_{cell}.collect_wgs_metrics.txt", run=runs, cell=cells),
+        expand("picard/{run}_{cell}.gc_bias_metrics.txt", run=runs, cell=cells),
+        expand("mosdepth/{run}_{cell}.mosdepth.summary.txt", run=runs, cell=cells),
+        expand("downsample/{run}_{cell}.downsampled.bam.flagstat.txt", run=runs, cell=cells),
+    output:
+        data = directory("multiqc_data"),
+        html = "multiqc_report.html"
+    log: "multiqc_report.html.log" 
+    singularity: "/vulpes/common/ngi/containers/biocontainers/singularity-multiqc-1.21--pyhdfd78af_0.img"
+    shell:
+        "multiqc"
+        " -m picard"
+        " -m mosdepth"
+        " -m samtools"
+        " --cl-config 'picard_config: {{s_name_filenames: true}}'"
+        " ."
+        " &> {log}"
+                
+
+rule d4_histogram:
+    input:
+        d4 = "mosdepth/{run}_{cell}.per-base.d4",
+    output:
+        tsv = "histogram/{run}_{cell}_tmp/{stratification}.tsv"
+    singularity: d4tools
+    params:
+        bed = lambda wildcards: stratification_paths[wildcards.stratification]
+    shell:
+        "d4tools view"
+        " -R <(gunzip -c {params.bed})"
+        " {input.d4}"
+        " | "
+        "awk '{{ OFS=\"\\t\"; hist[$4]+=($3-$2) }} END {{ for (v in hist) print v, hist[v] }}'"
+        " | "
+        "sort -n"
+        " > {output.tsv}"
+        # There is an issue with stat so we use d4tools view + awk instead for now
+        # see: https://github.com/38/d4-format/issues/95
+        #
+        # "d4tools stat"
+        # " -r <(gunzip -c {params.bed})"
+        # " -s hist"
+        # " -t 1"
+        # " {input.d4}"
+        # " > {output.tsv}"
+
+
+rule aggregate_histograms:
+    input:
+        expand("histogram/{{run}}_{{cell}}_tmp/{stratification}.tsv", stratification=stratification_paths.keys())
+    output:
+        tsv = "histogram/{run}_{cell}.tsv",
+        tsv2 = "histogram/{run}_{cell}.normalized.tsv"
+    singularity: pandas
+    script: "aggregate_histograms.py"   

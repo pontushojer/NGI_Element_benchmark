@@ -1,0 +1,12 @@
+Sample	bcftools	bwa	samtools	deepvariant	fastp	gatk4	mosdepth	vcftools	nf-core/sarek	Nextflow
+BCFTOOLS_STATS	1.18									
+BWAMEM1_MEM		0.7.17.post1188	1.19.2							
+DEEPVARIANT				1.5.0						
+FASTP					0.23.4					
+GATK4 MarkDuplicates			1.19.2			4.5.0.0				
+MERGE_DEEPVARIANT_GVCF						4.5.0.0				
+MERGE_DEEPVARIANT_VCF						4.5.0.0				
+Mosdepth							0.3.8			
+SAMTOOLS_STATS			1.19.2							
+VCFTOOLS_TSTV_COUNT								0.1.16		
+Workflow									3.4.2	24.4.2

@@ -1,0 +1,13 @@
+Sample	0.0	1.0
+aviti_hq | KMS12BM.deepvariant.TsTv.count	0.653817	1.99368
+aviti_hq | MM1S.deepvariant.TsTv.count	0.654097	2.02062
+aviti_hq | OPM2.deepvariant.TsTv.count	0.655985	1.99229
+aviti_hq | REH.deepvariant.TsTv.count	0.663277	2.11283
+aviti_ngi | KMS12BM.deepvariant.TsTv.count	0.637532	1.98249
+aviti_ngi | MM1S.deepvariant.TsTv.count	0.633681	2.0168
+aviti_ngi | OPM2.deepvariant.TsTv.count	0.632525	1.98194
+aviti_ngi | REH.deepvariant.TsTv.count	0.636303	2.10757
+xplus_sns | KMS12BM.deepvariant.TsTv.count	0.918936	2.00169
+xplus_sns | MM1S.deepvariant.TsTv.count	0.936276	2.02782
+xplus_sns | OPM2.deepvariant.TsTv.count	0.898621	2.00034
+xplus_sns | REH.deepvariant.TsTv.count	0.96282	2.12074

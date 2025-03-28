@@ -1,0 +1,645 @@
+
+"""
+Snakemake file for running DeepVariant on PacBio HiFi data.
+
+load modules:
+
+    ml bioinfo-tools snakemake
+
+sbatch command:
+
+    sbatch -A ngi2016004 -J vcb -n 8 -p core -t 1-00:00:00 --wrap "snakemake -p -j 12 --use-singularity -k" --mail-user phojer@kth.se --mail-type ALL
+"""
+
+
+fasta = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa"
+
+stratification_dir = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38@all/"
+stratification = stratification_dir + "GRCh38-all-stratifications.tsv"
+
+pacbio_data = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/data/wgs/PacBio_HiFi_BAMs"
+
+bam_paths = {
+    "OPM2": f"{pacbio_data}/pr_023_001_OPM2.bam",
+    "KMS12BM": f"{pacbio_data}/pr_023_002_KMS12BM.bam",
+    "MM1S": f"{pacbio_data}/pr_023_003_MM1S.bam",
+    #"REH": f"{pacbio_data}/REH_SRR23704823.bam"
+}
+
+runs=[
+    "aviti_hq",
+    "aviti_ngi",
+    "xplus_sns"
+]
+
+cells = [
+    "KMS12BM",
+    "MM1S",
+    "OPM2",
+    # "REH" # Skip REH because of low coverage in the PacBio data
+]
+
+downsample_coverages = [10, 15, 20, 25, 30, 40, 50]
+
+# Coverage for chr20 taken from *md.mosdepth.summary.txt in dir
+# analysisnfcore_sarek/<run>/outdir/reports/mosdepth/<cell>/<cell>.md.mosdepth.summary.txt
+# used command: grep -r ^chr20_region nfcore_sarek_rerun/*/outdir/reports/mosdepth/*/*.md.mosdepth.summary.txt | cut -f 1,4
+coverage_data = {
+    "aviti_hq": {
+        "KMS12BM": 65.82,
+        "MM1S": 54.17,
+        "OPM2": 57.94,
+        "REH": 50.56
+    },
+    "aviti_ngi": {
+        "KMS12BM": 22.70,
+        "MM1S": 19.23,
+        "OPM2": 23.17,
+        "REH": 17.07
+    },
+    "xplus_sns": {
+        "KMS12BM": 66.46,
+        "MM1S": 54.58,
+        "OPM2": 67.11,
+        "REH": 51.64
+    }
+}
+
+# Arguments
+deepvariant_args = "--model_type WGS --regions 'chr20'"
+happy_args_truth = "--location chr20 --preprocess-truth --engine=vcfeval --pass-only"
+happy_args = "--location chr20 --engine=vcfeval --roc DP --preprocess-truth"
+
+# Containers
+deepvariant_container = "/vulpes/common/ngi/containers/biocontainers/nf-core-deepvariant-1.5.0.img"
+happy_container = "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/hap.py_latest.sif"
+rtg_container = "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/rtg-tools_realtimegenomics_3.12.1.sif"
+bcftools_container = "/vulpes/ngi/containers/biocontainers/singularity-bcftools-1.18--h8b25389_0.img"
+bedtools_container = "/vulpes/ngi/containers/biocontainers/singularity-bedtools-2.30.0--hc088bd4_0.img"
+mosdepth_container = "/vulpes/ngi/containers/biocontainers/singularity-mosdepth-0.3.8--hd299d5a_0.img"
+multiqc_container = "/vulpes/common/ngi/containers/biocontainers/singularity-multiqc-1.21--pyhdfd78af_0.img"
+
+def possible_vcfs(runs, cells):
+    # Generate all possible combinations of runs, cells and coverages
+    for run in runs:
+        for cell in cells:
+            coverage = coverage_data[run][cell]
+            possible_coverages = [cov for cov in downsample_coverages if cov < coverage]
+            for cov in possible_coverages:
+                yield run, cell, cov
+
+
+def get_pacbio_bam(wildcards):
+    bam = bam_paths[wildcards.cell]
+    bai = bam + ".bai"
+    return {"bam": bam, "bai": bai}
+
+
+def get_cram(wildcards):
+    run = wildcards.run
+    cell = wildcards.cell
+    cram = f"../nfcore_sarek_rerun/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram",
+    crai = f"../nfcore_sarek_rerun/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram.crai",
+    return {"cram": cram, "crai": crai}
+
+
+def get_ratio(wildcards):
+    # Calculate downsample ratio
+    coverage_wanted = int(wildcards.coverage)
+    coverage = coverage_data[wildcards.run][wildcards.cell]
+    ratio = round(coverage_wanted / coverage, 4)
+    assert ratio < 1, f"Downsample ratio must be less than 1, got {ratio} for {wildcards.run} {wildcards.cell} {wildcards.coverage}"
+    return ratio
+
+
+rule all:
+    input:
+        "multiqc_report.html"
+
+
+#################
+# Call Variants #
+#################
+
+
+rule pacbio_deepvariant:
+    input:
+        unpack(get_pacbio_bam)
+    output:
+        vcf = "deepvariant/pacbio/{cell}_chr20.vcf.gz"
+    singularity: deepvariant_container
+    log: "deepvariant/pacbio/{cell}_chr20.vcf.gz.log"
+    params:
+        fasta = fasta
+    threads: 4
+    shell:
+        "/opt/deepvariant/bin/run_deepvariant"
+        " --ref {params.fasta}"
+        " --reads {input.bam}"
+        " --output_vcf {output.vcf}"
+        " --model_type PACBIO"
+        " --num_shards {threads}"
+        " --regions 'chr20'"
+        " &> {log}"
+
+
+rule deepvariant_downsampled:
+    input:
+        unpack(get_cram)
+        #cram = "../nfcore_sarek/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram",
+        #crai = "../nfcore_sarek/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram.crai",
+    output:
+        vcf = "deepvariant/{run}/{cell}_{coverage}X_chr20.vcf.gz"
+    singularity: "/vulpes/common/ngi/containers/biocontainers/nf-core-deepvariant-1.5.0.img"
+    log: "deepvariant/{run}/{cell}_{coverage}X_chr20.vcf.gz.log"
+    params:
+        fasta = fasta,
+        downsample_ratio = lambda wildcards: get_ratio(wildcards),
+        args = deepvariant_args
+    threads: 4
+    shell:
+        "/opt/deepvariant/bin/run_deepvariant"
+        " --ref {params.fasta}"
+        " --reads {input.cram}"
+        " --output_vcf {output.vcf}"
+        " --num_shards {threads}"
+        " --make_examples_extra_args downsample_fraction={params.downsample_ratio}"
+        " {params.args}"
+        " &> {log}"
+
+
+rule filter_truthset_pass:
+    input:
+        vcf = "{file}.vcf.gz"
+    output:
+        vcf = "{file}_PASS.vcf.gz"
+    singularity: bcftools_container
+    shell:
+        "bcftools view"
+        " -f PASS"
+        " {input.vcf}"
+        " -O z"
+        " -o {output.vcf}"
+
+
+#########
+# Stats #
+#########
+
+
+rule count_filters:
+    input: 
+        vcf = "deepvariant/{run}/{cell}_{cov}X_chr20.vcf.gz"
+    output:
+        tsv = "count_filters/{run}/{cell}_{cov}X_chr20_filters.tsv"
+    shell:
+        "zcat {input.vcf}"
+        " | "
+        " grep -v '^#'"
+        " | "
+        " cut -f 7"
+        " | "
+        " sort"
+        " | "
+        " uniq -c"
+        " > {output.tsv}"
+
+
+rule aggregate_filter_counts:
+    input:
+        tsvs = [f"count_filters/{run}/{cell}_{cov}X_chr20_filters.tsv" for run, cell, cov in possible_vcfs(runs, cells + ["REH"])]
+    output:
+        txt = "count_filters/aggregate_filters_mqc.txt"
+    run:
+        from collections import defaultdict
+        from pathlib import Path
+        counts = {}
+        for file in input.tsvs:
+            file = Path(file)
+            with open(file) as f:
+                run = file.parts[-2]
+                cell = file.stem.split("_")[0]
+                cov = file.stem.split("_")[1][:-1]
+                sample = (run, cell, cov)
+                sample_counts = defaultdict(int)
+                for line in f:
+                    count, filt = line.strip().split()
+                    sample_counts[filt] += int(count)
+                
+                counts[sample] = sample_counts
+        
+        columns = set(k for c in counts.values() for k in c.keys())
+        with open(output.txt, "w") as f:
+            # Print MultiQC header
+            print("""\
+# plot_type: 'table'
+# section_name: 'VCF Filter counts'
+# description: 'Counts of VCF filters in the DeepVariant output VCFs'\
+""", file=f)
+
+            # Print table header
+            print("run", "cell", "cov", *columns, sep="\t", file=f)
+
+            # Print table rows
+            for sample, sample_counts in counts.items():
+                print(*sample, *[sample_counts.get(col, 0) for col in columns], sep="\t", file=f)
+
+
+rule bcftools_stats:
+    input:
+        vcf = "deepvariant/{run}/{cell}.vcf.gz"
+    output:
+        txt = "bcftools_stats/{run}/{cell}.txt"
+    singularity: bcftools_container
+    params:
+        ref = fasta
+    shell:
+        "bcftools stats"
+        " --fasta-ref {params.ref}"
+        " {input.vcf}"
+        " > {output.txt}"
+
+
+rule mosdepth:
+    input:
+        unpack(get_pacbio_bam)
+    output:
+        txt = "mosdepth/pacbio/{cell}.mosdepth.summary.txt"
+    singularity: mosdepth_container
+    log: "mosdepth/pacbio/{cell}.mosdepth.log"
+    threads: 2
+    params:
+        prefix = "mosdepth/pacbio/{cell}"
+    shell:
+        "MOSDEPTH_PRECISION=5"
+        " mosdepth"
+        " --threads {threads}"
+        " --no-per-base"
+        " --fast-mode"
+        " {params.prefix}"
+        " {input.bam}"
+        " &> {log}"
+
+
+###########################
+# High confidence regions #
+###########################
+
+
+rule mosdepth_chr20_pacbio_100bp_bins:
+    input:
+        bam = lambda wildcards: bam_paths[wildcards.cell]
+    output:
+        bed = "highconf/pacbio/{cell}.regions.bed.gz"
+    singularity: mosdepth_container
+    log: "highconf/pacbio/{cell}.mosdepth.log"
+    threads: 2
+    params:
+        prefix = "highconf/pacbio/{cell}",
+        ref = fasta
+    shell:
+        "mosdepth"
+        " --threads {threads}"
+        " --no-per-base"
+        " --fast-mode"
+        " --chrom chr20"
+        " --fasta {params.ref}"
+        " -b 100" # Bins of 100bp
+        " -Q 20" # Minimum mapping quality of 20
+        " {params.prefix}"
+        " {input.bam}"
+        " &> {log}"
+
+
+rule mosdepth_chr20_100bp_bins:
+    input:
+        unpack(get_cram)
+        #cram = "../nfcore_sarek/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram",
+        #crai = "../nfcore_sarek/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram.crai"
+    output:
+        bed = "highconf/{run}/{cell}.regions.bed.gz"
+    singularity: mosdepth_container
+    log: "highconf/{run}/{cell}.mosdepth.log"
+    threads: 2
+    params:
+        prefix = "highconf/{run}/{cell}",
+        ref = fasta
+    shell:
+        "mosdepth"
+        " --threads {threads}"
+        " --no-per-base"
+        " --fast-mode"
+        " --chrom chr20"
+        " --fasta {params.ref}"
+        " -b 100" # Bins of 100bp
+        " -Q 60" # Minimum mapping quality of 60
+        " {params.prefix}"
+        " {input.cram}"
+        " &> {log}"
+
+
+rule get_callable_regions:
+    # Generation of confident regions based on the union of the mosdepth regions
+    # inspired by the Platinum Pedigree Consortium
+    # see: https://github.com/Platinum-Pedigree-Consortium/Platinum-Pedigree-Inheritance/blob/main/analyses/hcr_regions.md
+    input:
+        bed = "highconf/{run}/{cell}.regions.bed.gz"
+    output:
+        bed = temp("highconf/{run}/{cell}.regions.filtered.bed")
+    singularity: bedtools_container
+    shell:
+        "median=$(zcat {input.bed} | cut -f4 | sort -n | awk ' {{ a[i++]=$1; }} END {{ print a[int(i/2)] }}')"
+        " && "
+        "zcat {input.bed}"
+        " | "
+        # Minimum depth of 10 and less than 2x the median depth
+        " awk -v median=\"$median\" '$4 >= 10 && $4 <= 2 * median'"
+        " > {output.bed}"
+
+
+
+rule merge_callable_regions_per_cell_line:
+    # Generation of confident regions based on the union of the mosdepth regions
+    # per cell line. 
+    input:
+        beds = expand("highconf/{run}/{{cell}}.regions.filtered.bed", run=runs)
+    output:
+        bed = "highconf/{cell}_confident_regions_SR.bed"
+    singularity: bedtools_container
+    shell:
+        "cat {input.beds}"
+        " | "
+        " sort -k1,1 -k2,2n"
+        " | "
+        " bedtools merge"
+        " > {output.bed}"
+
+
+rule find_pacbio_complex_variant_regions:
+    # Find regions with complex variants (variants within 10bp) in the VCF file and extend them by 50bp
+    # https://github.com/genome-in-a-bottle/genome-stratifications/blob/22c15cb7889e9069b65bdd1d12c6ead44e24d496/GRCh38/GenomeSpecific/GS-snakemake-pipeline/workflow/Snakefile#L292
+    input:
+        vcf = "deepvariant/pacbio/{cell}_chr20_PASS.vcf.gz"
+    output:
+        bed = "highconf/pacbio/{cell}.complex10bp_slop50.bed"
+    singularity: bedtools_container
+    params:
+        fai = fasta + ".fai"
+    shell:
+        "bedtools merge -i {input.vcf} -d 10 -c 2 -o count"
+        " | "
+        "awk '$4 > 1'"
+        " | "
+        "bedtools slop -i stdin -b 50 -g {params.fai}"
+        " | "
+        "bedtools merge -i stdin"
+        " > {output.bed}"
+
+
+rule subtract_complex_variant_regions:
+    input:
+        pb_bed = "highconf/pacbio/{cell}.regions.filtered.bed",
+        complex_bed = "highconf/pacbio/{cell}.complex10bp_slop50.bed"
+    output:
+        bed = "highconf/pacbio/{cell}.regions.filtered.no_complex.bed"
+    singularity: bedtools_container
+    shell:
+        "bedtools subtract"
+        " -a {input.pb_bed}"
+        " -b {input.complex_bed}"
+        " > {output.bed}"
+
+
+rule pacbio_low_confidence_stratifications:
+    # Low confidence regions identified for PacBio HiFi data in GIAB v4.2.1 paper
+    # See
+    # - Methods: https://www.sciencedirect.com/science/article/pii/S2666979X2200057X#mmc1
+    # - FigS5: https://ars.els-cdn.com/content/image/1-s2.0-S2666979X2200057X-mmc1.pdf
+    #
+    # Aslo MHC benchmark regions which excludes "homopolymers, including imperfect 
+    # homopolymers [...], longer than 10 bp in length plus 5 bp padding on each side, 
+    # since these exhibit a higher error rate for HiFi reads". Excluded 12bp+ homopolymers 
+    # instead of 10bp+ as this is the closest stratification included in v3.5.
+    # - https://www.nature.com/articles/s41467-020-18564-9#Sec8
+    input:
+        stratification_dir + "OtherDifficult/GRCh38_contigs_lt500kb.bed.gz",
+        #stratification_dir + "LowComplexity/GRCh38_AllTandemRepeats_ge10001bp_slop5.bed.gz",
+        #stratification_dir + "SegmentalDuplications/GRCh38_segdups_gt10kb.bed.gz",
+        stratification_dir + "LowComplexity/GRCh38_SimpleRepeat_imperfecthomopolge11_slop5.bed.gz",
+        stratification_dir + "LowComplexity/GRCh38_SimpleRepeat_homopolymer_ge12_slop5.bed.gz",
+        stratification_dir + "OtherDifficult/GRCh38_gaps_slop15kb.bed.gz",
+    output:
+        bed = "highconf/pacbio/low_confidence.bed"
+    singularity: bedtools_container
+    shell:
+        "zcat {input}"
+        " | "
+        "sort -k1,1 -k2,2n"
+        " | "
+        " bedtools merge -i stdin"
+        " > {output.bed}"
+
+
+def get_pacbio_pbsv_vcf(wildcards):
+    vcf_paths = {
+        "OPM2": "../pacbio_pbsv/pr_023_001_OPM2.pbsv.vcf.gz",
+        "KMS12BM": "../pacbio_pbsv/pr_023_002_KMS12BM.pbsv.vcf.gz",
+        "MM1S": "../pacbio_pbsv/pr_023_003_MM1S.pbsv.vcf.gz",
+    }
+    return vcf_paths[wildcards.cell]
+
+
+rule pacbio_pbsv_regions:
+    # Generate bed with SVs >= 50 bp called by pbsv including 50bp on each side
+    # https://github.com/genome-in-a-bottle/genome-stratifications/blob/badb7b3cb77acc80a888e056a6bfe5e957e1d3fa/GRCh37/GenomeSpecific/HG007_GRCh37_CNV_exclusion_bed_generation.ipynb#L19
+    input:
+        get_pacbio_pbsv_vcf
+    output:
+        bed = "highconf/pacbio/{cell}.sv_gt49bp_slop50.bed"
+    singularity: bcftools_container
+    shell:
+        "bcftools view"
+        " -H"
+        " -i 'ABS(SVLEN)>49'" # Only keep SVs larger than or equal to 50bp
+        " -f PASS"
+        " {input}"
+        " chr20"
+        " | "
+        # Add 50bp on each side
+        "awk '{{OFS = \"\\t\" ; print $1,$2-50,$2+length($4)+50}}'"
+        " > {output.bed}"
+
+
+# TODO - This rule in not used, should it be removed?
+rule pacbio_pbsv_regions_expand_tr_and_hp:
+    # Generate bed with SVs called by pbsv including overlapping homopolymers and tandem repeats, with 25% of the SV size added on each side.
+    # https://github.com/genome-in-a-bottle/genome-stratifications/blob/badb7b3cb77acc80a888e056a6bfe5e957e1d3fa/GRCh37/GenomeSpecific/HG007_GRCh37_CNV_exclusion_bed_generation.ipynb#L19
+    input:
+        bed = "highconf/pacbio/{cell}.sv_gt49bp_slop50.bed",
+        lc_bed = stratification_dir + "LowComplexity/GRCh38_AllTandemRepeatsandHomopolymers_slop5.bed.gz"
+    output:
+        bed = "highconf/pacbio/{cell}.sv_slop25percent.bed"
+    singularity: bedtools_container
+    params:
+        fai = fasta + ".fai"
+    shell:
+        # Get tandem repeats and homopolymers that overlap with SVs
+        "bedtools intersect"
+        " -wa"
+        " -a {input.lc_bed}"
+        " -b {input.bed}"
+        " | "
+        # Merge overlapping regions with SVs
+        "bedtools multiinter"
+        " -i stdin"
+        " {input.bed}"
+        " | "
+        "sort -k1,1 -k2,2n"
+        " | "
+        # Merge regions that are within 100bp of each other
+        "bedtools merge"
+        " -i stdin"
+        " -d 1000"
+        " | "
+        # Extend regions by 25% on each side
+        "bedtools slop"
+        " -i stdin"
+        " -g {params.fai}"
+        " -b 0.25"
+        " -pct"
+        " > {output.bed}"
+
+
+rule pacbio_subtract_low_confidence_and_variant_regions:
+    input:
+        pb_bed = "highconf/pacbio/{cell}.regions.filtered.bed",
+        low_confidence = "highconf/pacbio/low_confidence.bed",
+        svs = "highconf/pacbio/{cell}.sv_gt49bp_slop50.bed",
+        complexvar = "highconf/pacbio/{cell}.complex10bp_slop50.bed"
+    output:
+        bed = "highconf/pacbio/{cell}.regions.filtered.high_confidence.bed"
+    singularity: bedtools_container
+    shell:
+        "bedtools subtract"
+        " -a {input.pb_bed}"
+        " -b {input.low_confidence}"
+        " | "
+        "bedtools subtract"
+        " -a stdin"
+        " -b {input.svs}"
+        " | "
+        "bedtools subtract"
+        " -a stdin"
+        " -b {input.complexvar}"
+        " | "
+        "bedtools sort -i stdin"
+        " | "
+        "bedtools merge -i stdin"
+        " > {output.bed}"
+
+
+rule intersect_confident_regions_w_pacbio_per_cell:
+    input:
+        sr_bed = "highconf/{cell}_confident_regions_SR.bed",
+        pb_bed = "highconf/pacbio/{cell}.regions.filtered.high_confidence.bed"
+    output:
+        bed = "highconf/{cell}_confident_regions_intersect.bed"
+    singularity: bedtools_container
+    shell:
+        "bedtools intersect"
+        " -a {input.sr_bed}"
+        " -b {input.pb_bed}"
+        " | "
+        "bedtools sort -i stdin"
+        " | "
+        "bedtools merge -i stdin"
+        " > {output.bed}"
+
+
+rule subtract_overlapping_tr_and_hps:
+    # Subtract full regions of tandem repeats and homopolymers from high confidence regions
+    # source: https://github.com/jzook/genome-data-integration/blob/cfc5e261d9fc98cccd3de4648fe3805f256f2f1e/NISTv4.2.1/DNAnexusApplets/nist-integration-v4.2.1-anyref/resources/home/dnanexus/pipeline_runner.py#L293
+    input:
+        bed = "highconf/{cell}_confident_regions_intersect.bed",
+        tr_hp = stratification_dir + "LowComplexity/GRCh38_AllTandemRepeatsandHomopolymers_slop5.bed.gz"
+    output:
+        bed = "highconf/{cell}_confident_regions_intersect.tr_hp.bed"
+    singularity: bedtools_container
+    params:
+        fai = fasta + ".fai"
+    shell:
+        "bedtools complement -i {input.bed} -g {params.fai}"
+        " | "
+        "bedtools intersect -wa -a {input.tr_hp} -b stdin"
+        " | "
+        "bedtools subtract -a {input.bed} -b stdin"
+        " > {output.bed}"
+
+####################
+# Hap.py benchmark #
+####################
+
+rule rgt_format:
+    output:
+        directory("GRCh38.sdf")
+    params:
+        fasta = fasta
+    singularity: rtg_container
+    shell:
+        "rtg format -o {output} {params.fasta}"
+
+rule happy_pacbio:
+    input:
+        vcf = "deepvariant/{run}/{cell}_{cov}X_chr20.vcf.gz",
+        truth = "deepvariant/pacbio/{cell}_chr20_PASS.vcf.gz",
+        bed = "highconf/{cell}_confident_regions_intersect.tr_hp.bed",
+        sdf = "GRCh38.sdf"
+    output:
+        csv = "happy/{run}/{cell}_{cov}X_chr20_vspacbio.summary.csv"
+    singularity: happy_container
+    log: "happy/{run}/{cell}_{cov}X_chr20_vspacbio.log"
+    threads: 4
+    params:
+        prefix = "happy/{run}/{cell}_{cov}X_chr20_vspacbio",
+        stratification = stratification,
+        ref = fasta,
+        args = happy_args,
+        pwd = os.getcwd()
+    shell:
+        "/opt/hap.py/bin/hap.py"
+        " --stratification {params.stratification}"
+        " --reference {params.ref}"
+        " --report-prefix {params.prefix}"
+        " --engine-vcfeval-template {params.pwd}/{input.sdf}"
+        " --threads {threads}"
+        " -f {input.bed}"
+        " {params.args}"
+        " {params.pwd}/{input.truth}"
+        " {params.pwd}/{input.vcf}"
+        " &> {log}"
+
+
+################
+# MultiQC data #
+################
+
+rule multiqc:
+    input:
+        expand("bcftools_stats/pacbio/{cell}_chr20.txt", cell=list(bam_paths)),
+        expand("mosdepth/pacbio/{cell}.mosdepth.summary.txt", cell=list(bam_paths)),
+        [f"bcftools_stats/{run}/{cell}_{cov}X_chr20.txt" for run, cell, cov in possible_vcfs(runs, cells)],
+        [f"happy/{run}/{cell}_{cov}X_chr20_vspacbio.summary.csv" for run, cell, cov in possible_vcfs(runs, cells)],
+        "count_filters/aggregate_filters_mqc.txt"
+    output:
+        data = directory("multiqc_data"),
+        html = "multiqc_report.html"
+    log: "multiqc_report.html.log" 
+    singularity: multiqc_container
+    shell:
+        "multiqc"
+        " -m mosdepth"
+        " -m bcftools"
+        " -m happy"
+        " -m custom_content"
+        " ."
+        " &> {log}"
