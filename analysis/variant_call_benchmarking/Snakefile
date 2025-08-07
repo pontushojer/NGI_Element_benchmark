@@ -114,7 +114,8 @@ def get_ratio(wildcards):
 
 rule all:
     input:
-        "multiqc_report.html"
+        "multiqc_report.html",
+        expand("bcftools_isec/{cell}/{type}/counts.txt", cell=cells + ["REH"], type=["all", "snp", "indel"])
 
 
 #################
@@ -256,6 +257,7 @@ rule bcftools_stats:
     shell:
         "bcftools stats"
         " --fasta-ref {params.ref}"
+        " -i 'FILTER==\"PASS\"'"
         " {input.vcf}"
         " > {output.txt}"
 
@@ -279,6 +281,47 @@ rule mosdepth:
         " {params.prefix}"
         " {input.bam}"
         " &> {log}"
+
+
+def vcfs_by_cell(wc):
+    vcfs = []
+    for run, cell, cov in possible_vcfs(runs, [wc.cell]):
+        if cov not in [10, 30]:
+            continue
+        
+        vcfs.append(f"deepvariant/{run}/{wc.cell}_{cov}X_chr20.vcf.gz")
+    
+    return {"vcfs": vcfs}
+
+
+rule bcftools_isec:
+    input:
+        unpack(vcfs_by_cell)
+    output:
+        dir = directory("bcftools_isec/{cell}/{type}"),
+        sites = "bcftools_isec/{cell}/{type}/sites.txt",
+        readme = "bcftools_isec/{cell}/{type}/README.txt"
+    log: "bcftools_isec/{cell}/{type}/log.txt"
+    params:
+        args = lambda wc: "" if wc.type == "all" else f" -i 'TYPE=\"{wc.type}\"'"
+    singularity: bcftools_container
+    shell:
+        "bcftools isec"
+        " {input.vcfs}"
+        " {params.args}"
+        " -f PASS"
+        " -p {output.dir}"
+        " &> {log}"
+
+
+rule count_sets:
+    input:
+        sites = "bcftools_isec/{cell}/{type}/sites.txt"
+    output:
+        txt = "bcftools_isec/{cell}/{type}/counts.txt"
+    shell:
+        "cut -f 5 {input.sites} | sort | uniq -c > {output.txt}"
+
 
 
 ###########################
@@ -641,5 +684,7 @@ rule multiqc:
         " -m bcftools"
         " -m happy"
         " -m custom_content"
+        " -d"
+        " -dd 1"
         " ."
         " &> {log}"

@@ -14,6 +14,12 @@ sbatch command:
 from pathlib import Path
 
 fasta = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa"
+
+# This TSV lists all stratifications except for subcategories:
+#  - Ancestry
+#  - FunctionalTechnicallyDifficult
+#  - GenomeSpecific
+# It also adds G4 motifs from pqsfinder v2.0.1 (https://pqsfinder.fi.muni.cz/hub/hg38/pqsfinder_hg38.bed)
 stratification_tsv = Path("/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38@all/GRCh38-all-stratifications.select.tsv")
 
 runs=["aviti_hq", "aviti_ngi", "xplus_sns"]

@@ -1,0 +1,127 @@
+"""
+Investigate the duplicates in chr20
+
+load modules:
+
+    ml bioinfo-tools snakemake
+
+sbatch command:
+    
+    sbatch -A ngi2016004 -J chr20_dups -n 24 -p core -t 12:00:00 --wrap "snakemake -p -j 24 --use-singularity -k" --mail-user phojer@kth.se --mail-type ALL
+
+"""
+from pathlib import Path
+
+runs=["aviti_hq", "aviti_ngi", "xplus_sns"]
+cells = ["KMS12BM", "MM1S", "OPM2", "REH"]
+
+base_dir = Path("/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina")
+
+avidity = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/envs/avidity.sif"
+
+fasta = base_dir / "resources/GRCh38_GIABv3/unbgzipped/genome.fa"
+
+wildcard_constraints:
+    cell="\w+",
+    run="\w+"
+
+
+rule all:
+    input:
+        expand("{run}_{cell}.chr20.bam", cell=cells, run=runs),
+        expand("dups/{run}_{cell}.chr20.dup_only.bam", cell=cells, run=runs),
+        expand("dups/{run}_{cell}.chr20.dup_only.distances.txt", cell=cells, run=runs),
+        expand("dups/{run}_{cell}.chr20.dup_only.stats.txt", cell=cells, run=runs),
+
+
+rule extract_chr20_alignments:
+    input:
+        cram = "../nfcore_sarek_rerun/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram",
+        crai = "../nfcore_sarek_rerun/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram.crai"
+    output:
+        bam = "{run}_{cell}.chr20.bam",
+        bai = "{run}_{cell}.chr20.bam.bai"
+    singularity: "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
+    threads: 4
+    params:
+        ref = fasta
+    shell:
+        "samtools view"
+        " -T {params.ref}"
+        " -o {output.bam}"
+        " -bh" # BAM output
+        " -@ {threads}"
+        " {input.cram}"
+        " chr20"
+        " && "
+        "samtools index {output.bam}"
+
+rule remark_duplicates:
+    # Add DI and DS tags to the BAM file
+    input:
+        bam = "{run}_{cell}.chr20.bam"
+    output:
+        bam = "dups/{run}_{cell}.chr20.bam",
+        txt = "dups/{run}_{cell}.chr20.bam.metrics.txt"
+    log: "dups/{run}_{cell}.chr20.bam.log"
+    singularity: "/vulpes/ngi/containers/biocontainers/singularity-gatk4-4.5.0.0--py36hdfd78af_0.img"
+    shell:
+        """
+        gatk MarkDuplicates \
+            -I {input.bam} \
+            -O {output.bam} \
+            -M {output.bam}.metrics.txt \
+            --TAG_DUPLICATE_SET_MEMBERS true \
+        &> {log}
+        """
+
+rule extract_duplicates:
+    # Extract only the duplicate related reads from the BAM file
+    input:
+        bam = "dups/{run}_{cell}.chr20.bam"
+    output:
+        bam = "dups/{run}_{cell}.chr20.dup_only.sam",
+    singularity: "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
+    shell:
+        """
+        samtools view -h -d DI --keep-tag DI,DS,RG {input.bam} > {output.bam}
+        """
+
+rule sam_to_bam:
+    # Convert the SAM file to BAM format
+    input:
+        sam = "dups/{run}_{cell}.chr20.dup_only.sam"
+    output:
+        bam = "dups/{run}_{cell}.chr20.dup_only.bam",
+        bai = "dups/{run}_{cell}.chr20.dup_only.bam.bai"
+    singularity: "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
+    threads: 2
+    shell:
+        """
+        samtools view -@ {threads} -bSh {input.sam} -o {output.bam}##idx##{output.bai} --write-index
+        """
+
+rule get_duplicate_distances:
+    input:
+        sam = "dups/{run}_{cell}.chr20.dup_only.sam"
+    output:
+        txt = "dups/{run}_{cell}.chr20.dup_only.distances.txt"
+    shell:
+        "python dup_dists.py {input.sam} > {output.txt}"
+
+rule duplicate_stats:
+    input:
+        bam = "dups/{run}_{cell}.chr20.dup_only.bam"
+    output:
+        txt = "dups/{run}_{cell}.chr20.dup_only.stats.txt"
+    singularity: avidity
+    params:
+        script = "../../scripts/duplicates.py"
+    shell:
+        "/opt/conda/envs/AvidityManuscript2023/bin/python"
+        " {params.script}"
+        " {input.bam}"
+        " > {output.txt}"
+
+    
+

@@ -1,0 +1,115 @@
+
+"""
+load modules:
+
+    ml bioinfo-tools snakemake
+
+sbatch command:
+    
+    sbatch -A ngi2016004 -J error_rate -n 12 -p core -t 2:00:00 --wrap "snakemake -p -j 12 --use-singularity -k" --mail-user phojer@kth.se --mail-type ALL
+"""
+
+reads = ["R1", "R2"]
+window = 100
+bins = list(range(100,2100, window))
+fasta = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa"
+g4_bed = "../resources/G4/pqsfinder_hg38.sort.bed"
+
+flank = 150
+directions = ["forward", "reverse"]
+
+datasets = ["Element_FS_JM-L825-HG002"]
+
+fragurancy="/vulpes/proj/ngis/ngi2016004/private/pontus/tools/fraguracy-0.2.4"
+samtools = "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
+
+wildcard_constraints:
+    dataset = "|".join(datasets),
+    read = "|".join(reads),
+    direction = "|".join(directions),
+
+rule all:
+    input:
+        expand("samtools_stats_public/{dataset}_{read}_stats.txt", read=reads, dataset=datasets),
+        expand("samtools_stats_public/{dataset}_insert_size/stats_{read}_{bin}.txt", read=reads, bin=bins, dataset=datasets),
+	expand("fragurancy/{dataset}-counts.txt", dataset=datasets)
+
+
+rule stats_public:
+    input:
+        cram = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/analysis/nfcore_sarek_public/outdir/preprocessing/markduplicates/{dataset}/{dataset}.md.cram",
+        crai = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/analysis/nfcore_sarek_public/outdir/preprocessing/markduplicates/{dataset}/{dataset}.md.cram.crai",
+    output:
+        txt = "samtools_stats_public/{dataset}_{read}_stats.txt"
+    singularity: samtools
+    params:
+        flag = lambda wildcards: {
+            "R1": 64,  # Read1 
+            "R2": 128  # Read2
+            }[wildcards.read],
+        ref = fasta,
+    shell:
+        "samtools view -bh -q 60 -f {params.flag}  -T {params.ref} {input.cram} chr20"
+        " | "
+        "samtools stats -r {params.ref} - > {output.txt}"
+
+rule stats_per_interval:
+    input:
+        cram = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/analysis/nfcore_sarek_public/outdir/preprocessing/markduplicates/{dataset}/{dataset}.md.cram",
+        crai = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/analysis/nfcore_sarek_public/outdir/preprocessing/markduplicates/{dataset}/{dataset}.md.cram.crai",
+    output:
+        txt = "samtools_stats_public/{dataset}_insert_size/stats_{read}_{bin}.txt"
+    singularity: samtools
+    params:
+        flag = lambda wildcards: {"R1": 66, "R2": 130}[wildcards.read],
+        filter = lambda wildcards: f"(tlen >= {wildcards.bin} && tlen < {int(wildcards.bin) + window})"
+                                    " || "
+                                    f"(tlen <= -{wildcards.bin} && tlen > -{int(wildcards.bin) + window})",
+        ref = fasta
+    threads: 2
+    shell:
+        "samtools view -@ {threads} -bh -T {params.ref} -q 60 -f {params.flag} -e '{params.filter}' {input.cram} chr20"
+        " | "
+        "samtools stats -r {params.ref} - > {output.txt}"
+
+
+rule extract_chr20:
+    input:
+        cram = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/analysis/nfcore_sarek_public/outdir/preprocessing/markduplicates/{dataset}/{dataset}.md.cram",
+        crai = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/analysis/nfcore_sarek_public/outdir/preprocessing/markduplicates/{dataset}/{dataset}.md.cram.crai",
+    output:
+        bam = "bam/{dataset}_chr20.bam",
+        bai = "bam/{dataset}_chr20.bam.bai"
+    singularity: samtools
+    params:
+        ref = fasta
+    threads: 2
+    shell:
+        "samtools view -@ {threads} -bh -T {params.ref} -q 60 {input.cram} chr20 -o {output.bam}"
+        " && "
+        "samtools index {output.bam}"
+
+
+rule fragurancy:
+    input:
+        bam = "bam/{dataset}_chr20.bam",
+        bai = "bam/{dataset}_chr20.bam.bai"
+    output:
+        multiext(
+            "fragurancy/{dataset}-", 
+            "errors.bed.gz", 
+            "indel-errors.bed.gz", 
+            "counts.txt",
+        )
+    params:
+        fragurancy = fragurancy,
+        fasta = fasta,
+        prefix = "fragurancy/{dataset}"
+    shell:
+        "{params.fragurancy} extract"
+        " --fasta {params.fasta}"
+        " --output-prefix {params.prefix}"
+        " --no-denominator"
+        " --bin-size 1"
+        " {input.bam}"
+        " &> {params.prefix}-extract.log"

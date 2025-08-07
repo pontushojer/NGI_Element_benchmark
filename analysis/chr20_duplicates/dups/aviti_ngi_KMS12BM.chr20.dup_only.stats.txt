@@ -1,0 +1,12 @@
+Pair combos                   :     160467
+Pair combos Prox+Compl        :        402
+Pair combos Prox+noCompl      :      18380
+Pair combos noProx+Compl      :     140770
+Pair combos noProx+noCompl    :        915
+PctPair combos Prox+Compl     :        0.3
+PctPair combos Prox+noCompl   :       11.5
+PctPair combos noProx+Compl   :       87.7
+PctPair combos noProx+noCompl :        0.6
+Read pairs                    :     315731
+Read pairs ds=2               :     310764
+Reads                         :     631462

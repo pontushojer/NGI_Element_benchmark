@@ -1,0 +1,106 @@
+"""
+Snakemake file to get the number of duplicates per lane for each cell
+
+load modules:
+
+    ml bioinfo-tools snakemake
+
+sbatch command:
+    
+    sbatch -A ngi2016004 -J dups -n 8 -p core -t 5:00:00 --wrap "snakemake -p -j 8 --use-singularity -k --rerun-incomplete" --mail-user phojer@kth.se --mail-type ALL
+"""
+from pathlib import Path
+
+cells = [
+    "KMS12BM", 
+    "MM1S", 
+    "OPM2",
+    "REH"
+]
+lanes = [
+    "L001",
+    "L002"
+]
+
+resources_dir = Path("/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources")
+
+# From GIAB references
+fasta = resources_dir / "GRCh38_GIABv3/unbgzipped/genome.fa"
+
+# Containers
+samtools = "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
+
+rule all:
+    input:
+        "duplicates_per_lane.tsv"
+
+
+rule get_read_groups_per_lane:
+    input:
+        cram = "../nfcore_sarek_rerun/xplus_sns/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram" 
+    output:
+        l1 = "{cell}.L001_read_groups.txt",
+        l2 = "{cell}.L002_read_groups.txt"
+    singularity: samtools
+    shell:
+        "samtools view"
+        " {input.cram}"
+        " -H"
+        " | "
+        "grep ^@RG"
+        " | "
+        "cut -f 2"
+        " | "
+        "cut -d: -f 2"
+        " | "
+        "tee  >(grep L001 > {output.l1})"
+        " | "
+        " grep L002 > {output.l2}"
+
+
+rule get_data_per_lane:
+    input:
+        cram = "../nfcore_sarek/xplus_sns/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram",
+        rg = "{cell}.{lane}_read_groups.txt"
+    output:
+        stats = "{cell}.{lane}_flagstat.tsv"
+    singularity: samtools
+    threads: 4
+    params:
+        fasta = fasta
+    shell:
+        "samtools view"
+        " -@ {threads}"
+        " -T {params.fasta}"
+        " -bh"
+        " -R {input.rg}"
+        " {input.cram}"
+        " chr20"
+        " | "
+        "samtools flagstat -O tsv -"
+        " > {output.stats}"
+
+
+rule aggregate_duplicates:
+    input:
+        stats = expand("{cell}.{lane}_flagstat.tsv", cell=cells, lane=lanes)
+    output:
+        "duplicates_per_lane.tsv"
+    run:
+        with open(output[0], "w") as out:
+            print("cell", "lane", "duplicate_rate", sep="\t", file=out)
+            for file in input.stats:
+                cell = file.split(".")[0]
+                lane = file.split(".")[1][:4]
+                data = {}
+                with open(file) as f:
+                    for line in f:
+                        stat, _, param = line.strip().split("\t")
+                        data[param] = stat
+
+                duplicates = int(data["primary duplicates"])
+                total = int(data["primary"])
+                duplicate_rate = duplicates / total
+
+                print(cell, lane, duplicate_rate, sep="\t", file=out)
+                    

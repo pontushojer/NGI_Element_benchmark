@@ -1,0 +1,5 @@
+File	Totals	Intersect	Intersect SS	Intersecting DS	Intersect fract	Intersect SS fract	Intersect DS fract
+all	172878	87125	8414	83294	.50	.04	.48
+all.diff	116830	81283	5387	79782	.69	.04	.68
+all.no_xplus	46317	42864	2585	42522	.92	.05	.91
+all.no_xplus.diff	46078	42684	2473	42359	.92	.05	.91

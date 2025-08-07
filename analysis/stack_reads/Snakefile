@@ -144,6 +144,7 @@ rule get_overlapping_reads:
         " -L {input.bed}"
         " -o {output.bam}"
         " {input.cram}"
+	" chr20"
         " && "
         "samtools index {output.bam}"
 

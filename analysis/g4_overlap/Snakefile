@@ -1,0 +1,34 @@
+from pathlib import Path
+import pandas as pd
+
+stratification_dir = Path("../../resources/GRCh38@all")
+stratification_tsv = stratification_dir / "GRCh38-all-stratifications.tsv"
+
+stratification_df = pd.read_csv(stratification_tsv, sep="\t", names=["name", "relative_path"])
+stratification_df["path"] = stratification_dir / stratification_df["relative_path"]
+stratification_df.set_index("name", inplace=True)
+
+stratifications = stratification_df.index.to_list()
+
+g4 = "../../resources/G4/pqsfinder_hg38.bed"
+genome = "../../resources/GRCh38_GIABv3/GRCh38_GIABv3.genome"
+
+rule all:
+    input:
+        expand("fisher/{strat}.tsv", strat=stratifications),
+
+
+def get_stratification_path(stratification):
+    return stratification_df["path"][stratification]
+
+
+rule fisher:
+    input:
+        beda = g4
+    output:
+        tsv = "fisher/{strat}.tsv"
+    params:
+        bedb = lambda wc: get_stratification_path(wc.strat),
+        genome = genome
+    shell:
+        "bedtools fisher -f 0.5 -r -a {input.beda} -b {params.bedb} -g {params.genome} > {output.tsv}"

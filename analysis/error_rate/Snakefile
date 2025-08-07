@@ -166,3 +166,4 @@ rule fragurancy_filt:
         " --bin-size 1"
         " {input.bam}"
         " &> {params.prefix}-extract.log"
+

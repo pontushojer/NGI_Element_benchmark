@@ -1,0 +1,49 @@
+"""
+load modules:
+
+    ml bioinfo-tools snakemake
+
+sbatch command:
+    
+    sbatch -A ngi2016004 -J frag_qual -n 20 -p core -t 12:00:00 --wrap "snakemake -p -j 20 --use-singularity -k" --mail-user phojer@kth.se --mail-type ALL
+"""
+window = 50
+bins = list(range(100,850, window))
+runs=["aviti_hq", "aviti_ngi", "xplus_sns"]
+cells = [
+    "KMS12BM", 
+    "MM1S", 
+    "OPM2",
+    "REH"
+]
+reads = ["R1", "R2"]
+
+fasta = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa"
+
+# Containers
+samtools = "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
+
+
+rule all:
+    input:
+        expand("{run}/{cell}/stats_{read}_{bin}.txt", read=reads, bin=bins, run=runs, cell=cells),
+
+
+rule stats_per_interval:
+    input:
+        cram = "../nfcore_sarek_rerun/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram"
+    output:
+        txt = "{run}/{cell}/stats_{read}_{bin}.txt"
+    singularity: samtools
+    params:
+        flag = lambda wildcards: {"R1": 66, "R2": 130}[wildcards.read],
+        start = lambda wildcards: int(wildcards.bin),
+        end = lambda wildcards: int(wildcards.bin) + window,
+        filter = lambda wildcards: f"(tlen >= {wildcards.bin} && tlen < {int(wildcards.bin) + window})"
+                                    " || "
+                                    f"(tlen <= -{wildcards.bin} && tlen > -{int(wildcards.bin) + window})",
+        ref = fasta
+    shell:
+        "samtools view -bh -T {params.ref} -q 60 -f {params.flag} -e '{params.filter}' {input.cram} chr20"
+        " | "
+        "samtools stats -r {params.ref} - > {output.txt}"

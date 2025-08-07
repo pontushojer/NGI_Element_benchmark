@@ -1,0 +1,281 @@
+
+public_data = {
+    # From GIAB
+    # Aviti whole genome sequencing of the GIAB Ashkenazim Jewish family trio NIST reference materials was 
+    # performed by Element Biosciences. Standard (~350-400 bp) and long insert (~1000+ bp) libraries were seqeunced on the AVITI instrument using in-development R&D reagents and recipes. Information presented in this README relates to HG002, son in the Ashkenazi Jewish trio.
+    # Mapping: BWA-MEM
+    "Element_GIAB_HG002_LongIn": "https://42basepairs.com/download/s3/giab/data/AshkenazimTrio/HG002_NA24385_son/Element_AVITI_20231018/HG002_GRCh38-GIABv3_Element-LngInsert_2X150_55x_20231018.bam",
+    "Element_GIAB_HG002_ShortIn": "https://42basepairs.com/download/s3/giab/data/AshkenazimTrio/HG002_NA24385_son/Element_AVITI_20231018/HG002_GRCh38-GIABv3_Element-StdInsert_2X150_81x_20231018.bam",
+    # From Element Biosciences, Avidity Manuscript
+    # Mapping: Sention-BWA
+    #"Element_Aditity_HG002": "https://42basepairs.com/download/s3/avidity-manuscript-data/data/sentieon-bwa/20220601_PLT-03_BBS-0174-OBPA__FQD-2x150-35x/deduped.bam",
+    "Element_Aditity_HG002": "deduped_chr20.bam",
+    # From Platinum Pedigree:
+    # Sample: 2188 (NA12878)
+    "Element_PlatinumPedigree_NA12878": "https://42basepairs.com/download/s3/platinum-pedigree-data/data/element/mapped/GRCh38/2188-E.GRCh38.merged.sort.bam",
+    # From GIAB
+    "Element_GIAB_HG008-N-D": "https://42basepairs.com/download/s3/giab/data_somatic/HG008/Liss_lab/Element_AVITI_20240118/HG008-N-D_Element-StdInsert_61x_GRCh38-GIABv3.bam",
+    # From DeepVariant 
+    # Mapping: BWA-MEM
+    # PCR-free, 35x 
+    "NovaSeq6000_DV_HG002": "https://42basepairs.com/download/gs/deepvariant/case-study-testdata/HG002.novaseq.pcr-free.35x.dedup.grch38_no_alt.bam"
+}
+
+reads = ["R1", "R2"]
+window = 100
+bins = list(range(100,2100, window))
+fasta = "/Users/pontus.hojer/analysis/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/GRCh38_GIABv3_no_alt_analysis_set_maskedGRC_decoys_MAP2K3_KMT2C_KCNJ18.fasta.gz"
+g4_bed = "../resources/G4/pqsfinder_hg38.sort.bed"
+
+flank = 150
+directions = ["forward", "reverse"]
+
+
+wildcard_constraints:
+    dataset = "|".join(public_data.keys()),
+    read = "|".join(reads),
+    direction = "|".join(directions),
+
+
+rule all:
+    input:
+        expand("samtools_stats_public/{dataset}_{read}_stats.txt", read=reads, dataset=public_data.keys()),
+        expand("fragurancy/{dataset}-counts.txt", dataset=public_data.keys()),
+        expand("samtools_stats_public/{dataset}_insert_size/stats_{read}_{bin}.txt", read=reads, bin=bins, dataset=public_data.keys()),
+        expand(
+            "pileup_quals/{dataset}_g4_{direction}.tsv",
+            dataset=public_data.keys(),
+            direction=directions,
+        ),
+        expand(
+            "pileup_bases/{dataset}_g4_{direction}.tsv",
+            dataset=public_data.keys(),
+            direction=directions,
+        ),
+
+
+rule stats_public:
+    output:
+        txt = "samtools_stats_public/{dataset}_{read}_stats.txt"
+    params:
+        flag = lambda wildcards: {
+            "R1": 64,  # Read1 
+            "R2": 128  # Read2
+            }[wildcards.read],
+        bam = lambda wc: public_data[wc.dataset],
+        ref = fasta,
+    shell:
+        "samtools view -bh -q 60 -f {params.flag} {params.bam} chr20"
+        " | "
+        "samtools stats -r {params.ref} - > {output.txt}"
+
+
+rule get_isolated_g4:
+    input:
+        bed = g4_bed
+    output:
+        bed = "g4_isolated.bed"
+    params:
+        genome = fasta + ".fai",
+        flank = flank * 2 + 1
+    shell:
+        "bedtools flank"
+        " -i {input.bed}"
+        " -g {params.genome}"
+        " -b {params.flank}"
+        " | "
+        "bedtools intersect"
+        " -v"
+        " -a {input.bed}"
+        " -b stdin"
+        " | "
+        # Filter to chr20
+        "awk '$1 == \"chr20\"'"
+        " | "
+        "sort -R"
+        " | "
+        "head -1000"
+        " | "
+        "bedtools sort"
+        " -i stdin"
+        " > {output.bed}"
+
+        
+rule split_g4_by_strand:
+    input:
+        bed = "g4_isolated.bed"
+    output:
+        bed_forward = "g4_forward.bed",
+        bed_reverse = "g4_reverse.bed"
+    shell:
+        "awk '$6 == \"+\"' {input.bed} > {output.bed_forward}"
+        " && "
+        "awk '$6 == \"-\"' {input.bed} > {output.bed_reverse}"
+
+
+rule download_avidity:
+    output:
+        bam = temp("deduped_chr20.bam")
+    params:
+        url = "https://42basepairs.com/download/s3/avidity-manuscript-data/data/sentieon-bwa/20220601_PLT-03_BBS-0174-OBPA__FQD-2x150-35x/deduped.bam"
+    threads: 4
+    shell:
+        "samtools view -@ {threads} -bh {params.url} chr20 -o {output.bam}"
+
+
+rule get_overlapping_alignments:
+    input:
+        bed = "g4_isolated.bed",
+    output:
+        bam = temp("overlapping/{dataset}_g4_{direction}.bam"),
+        bai  = temp("overlapping/{dataset}_g4_{direction}.bam.bai")
+    params:
+        fasta = fasta,
+        bam = lambda wc: public_data[wc.dataset],
+        flag = lambda wc: "-F 16" if wc.direction == "forward" else "-f 16",
+    threads: 8
+    shell:
+        "samtools view"
+        " -F 4" # Not unmapped
+        " -F 2048" # Not supplementary
+        " {params.flag}" # Forward or reverse strand
+        " --write-index"
+        " -@ {threads}"
+        " -bh"
+        " -L {input.bed}"
+        " -M"
+        " -T {params.fasta}"
+        " -o {output.bam}##idx##{output.bai}"
+        " {params.bam}"
+
+
+rule slop_g4:
+    input:
+        bed = "g4_isolated.bed"
+    output:
+        bed = "g4_isolated_slop.bed"
+    params:
+        genome = fasta + ".fai",
+        flank = flank,
+    shell:
+        "bedtools slop"
+        " -i {input.bed}"
+        " -g {params.genome}"
+        " -b {params.flank}"
+        " > {output.bed}"
+
+
+rule pileup_overlapping_aligments:
+    input:
+        bam = "overlapping/{dataset}_g4_{direction}.bam",
+        bed = "g4_isolated_slop.bed"
+    output:
+        bed = "pileup/{dataset}_g4_{direction}.bed"
+    params:
+        fasta = fasta
+    threads: 4
+    shell:
+        "samtools mpileup"
+        " -f {params.fasta}"
+        " -l {input.bed}"
+        " -o {output.bed}"
+        " --no-BAQ" # No base quality recalibration
+        " --min-BQ 0"
+        " -a"
+        " -x" # No overlap removal that modifies the base qualities
+        " {input.bam}"
+
+
+rule get_quals_from_pileup:
+    input:
+        pileup = "pileup/{dataset}_g4_{direction}.bed",
+        bed = "g4_isolated.bed"
+    output:
+        tsv = "pileup_quals/{dataset}_g4_{direction}.tsv"
+    params:
+        script = "../../scripts/mpileup_quals.py",
+        rev = lambda wc: "-r" if wc.direction == "reverse" else "",
+        flank = flank
+    shell:
+        "python {params.script}"
+        " {input.pileup}"
+        " {input.bed}"
+        " {params.rev}"
+        " -f {params.flank}"
+        " > {output.tsv}"
+
+
+rule get_bases_from_pileup:
+    input:
+        pileup = "pileup/{dataset}_g4_{direction}.bed",
+        bed = "g4_isolated.bed"
+    output:
+        tsv = "pileup_bases/{dataset}_g4_{direction}.tsv"
+    params:
+        script = "../../scripts/mpileup_quals.py",
+        rev = lambda wc: "-r" if wc.direction == "reverse" else "",
+        flank = flank
+    shell:
+        "python {params.script}"
+        " {input.pileup}"
+        " {input.bed}"
+        " {params.rev}"
+        " -f {params.flank}"
+        " --mismatch-bases"
+        " > {output.tsv}"
+
+
+rule stats_per_interval:
+    output:
+        txt = "samtools_stats_public/{dataset}_insert_size/stats_{read}_{bin}.txt"
+    params:
+        bam = lambda wc: public_data[wc.dataset],
+        flag = lambda wildcards: {"R1": 66, "R2": 130}[wildcards.read],
+        filter = lambda wildcards: f"(tlen >= {wildcards.bin} && tlen < {int(wildcards.bin) + window})"
+                                    " || "
+                                    f"(tlen <= -{wildcards.bin} && tlen > -{int(wildcards.bin) + window})",
+        ref = fasta
+    threads: 2
+    shell:
+        "samtools view -@ {threads} -bh -T {params.ref} -q 60 -f {params.flag} -e '{params.filter}' {params.bam} chr20:1000000-20000000"
+        " | "
+        "samtools stats -r {params.ref} - > {output.txt}"
+
+
+rule chr20_bam:
+    output:
+        bam = temp("{dataset}_chr20.bam"),
+        bai = temp("{dataset}_chr20.bam.bai")
+    params:
+        bam = lambda wc: public_data[wc.dataset],
+        ref = fasta
+    shell:
+        "samtools view"
+        " -bh"
+        " -T {params.ref}"
+        " -q 60"
+        " -o {output.bam}##idx##{output.bai}"
+        " --write-index"
+        " {params.bam}"
+        " chr20"
+
+
+rule fragurancy:
+    input:
+        bam = "{dataset}_chr20.bam",
+        bai = "{dataset}_chr20.bam"
+    output:
+        multiext("fragurancy/{dataset}-", "counts.txt", "errors.bed.gz", "indel-errors.bed.gz")
+    params:
+        fraguracy = "RUST_BACKTRACE=1 /Users/pontus.hojer/projects/fraguracy/target/release/fraguracy", # v0.2.4
+        prefix = lambda wc: f"fragurancy/{wc.dataset}",
+        fasta = fasta,
+    shell:
+        "{params.fraguracy} extract"
+        " --fasta {params.fasta}"
+        " --output-prefix {params.prefix}"
+        " --max-read-length 152"
+        " --no-denominator"
+        " --bin-size 1"
+        " {input.bam}"
+        " &> {params.prefix}-extract.log"

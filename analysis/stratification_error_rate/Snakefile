@@ -1,0 +1,272 @@
+"""
+load modules:
+
+    ml bioinfo-tools snakemake
+
+sbatch command:
+    
+    sbatch -A ngi2016004 -J g4 -n 24 -p core -t 1:00:00 --wrap "snakemake -p -j 24 --use-singularity -k" --mail-user phojer@kth.se --mail-type ALL
+"""
+
+runs = [
+    "aviti_hq",
+    "aviti_ngi",
+    "xplus_sns"
+]
+
+cells = [
+    "KMS12BM",
+    "MM1S",
+    "OPM2",
+    "REH",
+]
+
+directions = ["forward", "reverse"]
+methods = ["middle", "squach", "restrict"]
+# From GIAB references
+fasta = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa"
+
+# From GIAB stratifications v3.5
+autosomal_bed = "../../resources/GRCh38@all/XY/GRCh38_AllAutosomes.bed.gz"
+
+# https://pqsfinder.fi.muni.cz/hub/hg38/pqsfinder_hg38.bed
+g4_bed = "../../resources/G4/pqsfinder_hg38.sort.bed"
+regions = {
+    "g4": "../../resources/G4/pqsfinder_hg38.sort.bed",
+    "homopolymer7to11": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_homopolymer_7to11_slop5.bed.gz",
+    "homopolymer7to11GC": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_homopolymer_7to11_GC_slop5.bed.gz",
+    "homopolymerge12": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_homopolymer_ge12_slop5.bed.gz",
+    "homopolymerge12GC": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_homopolymer_ge12_GC_slop5.bed.gz",
+    "imperfecthomopolge11": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_imperfecthomopolge11_slop5.bed.gz",
+    "imperfecthomopolge11GC": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_imperfecthomopolge11_GC_slop5.bed.gz",
+    "diTR10to49": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_diTR_10to49_slop5.bed.gz",
+    "triTR14to49": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_triTR_14to49_slop5.bed.gz",
+    "quadTR19to49": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_quadTR_19to49_slop5.bed.gz",
+    "random": "../stack_reads/random_l30_n1000000.bed.gz"
+}
+
+# Container
+samtools = "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
+bedtools_container = "/vulpes/ngi/containers/biocontainers/singularity-bedtools-2.30.0--hc088bd4_0.img"
+
+
+def get_cram(wildcards):
+    run = wildcards.run
+    cell = wildcards.cell
+    cram = f"../nfcore_sarek_rerun/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram",
+    crai = f"../nfcore_sarek_rerun/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram.crai",
+    return {"cram": cram, "crai": crai}
+
+
+flank = 150
+
+wildcard_constraints:
+    run = "|".join(runs),
+    cell = "|".join(cells),
+    direction = "|".join(directions),
+    region = "|".join(regions),
+
+
+rule all:
+    input:
+        expand(
+            "quals/{run}/{cell}/{region}_{direction}_{method}.tsv",
+            run=runs,
+            cell=cells,
+            direction=directions,
+            region=regions.keys(),
+            method=methods,
+        ),
+        expand(
+            "bases/{run}/{cell}/{region}_{direction}_{method}.tsv",
+            run=runs,
+            cell=cells,
+            direction=directions,
+            region=regions.keys(),
+            method=methods,
+        ),
+
+
+rule correct_slop:
+    # Remove slop from regions that are defined with slop
+    input:
+        bed = lambda wc: regions[wc.region]
+    output:
+        bed = "regions/{region}.bed.gz"
+    singularity: bedtools_container
+    params:
+        genome = fasta + ".fai",
+        slop = lambda wc: -5 if "slop5" in regions[wc.region] else 0
+    shell:
+        "bedtools slop"
+        " -g {params.genome}"
+        " -b {params.slop}"
+        " -i {input.bed}"
+        " | "
+        " uniq"
+        " |"
+        "gzip -c"
+        " > {output.bed}"
+
+
+rule get_isolated_regions:
+    input:
+        bed = "regions/{region}.bed.gz"
+    output:
+        bed = "regions/{region}_isolated.bed"
+    params:
+        genome = fasta + ".fai",
+        flank = flank * 2 + 1
+    singularity: bedtools_container
+    shell:
+        "bedtools flank"
+        " -i {input.bed}"
+        " -g {params.genome}"
+        " -b {params.flank}"
+        " | "
+        "bedtools intersect" 
+        " -v"
+        " -a {input.bed}"
+        " -b stdin"
+        " | "
+        # Filter to chr20 and only regions <= 50 bp
+        "awk '$1 == \"chr20\" && $3-$2 <= 50'"
+        " > {output.bed}"
+
+
+rule slop_bed:
+    input:
+        bed = "{file}.bed"
+    output:
+        bed = "{file}_slop{slop}.bed"
+    singularity: bedtools_container
+    params:
+        genome = fasta + ".fai",
+    shell:
+        "bedtools slop"
+        " -i {input.bed}"
+        " -g {params.genome}"
+        " -b {wildcards.slop}"
+        " > {output.bed}"
+
+
+rule get_overlapping_alignments:
+    input:
+        unpack(get_cram),
+        bed = "regions/{region}_isolated.bed",
+    output:
+        bam = "overlapping/{run}/{cell}/{region}.bam",
+        bai = "overlapping/{run}/{cell}/{region}.bam.bai"
+    singularity: samtools
+    params:
+        fasta = fasta
+    threads: 4
+    shell:
+        "samtools view"
+        " -F 4" # Not unmapped
+        " -F 2048" # Not supplementary
+        " --write-index"
+        " -@ {threads}"
+        " -bh"
+        " -L {input.bed}"
+        " -M"
+        " -T {params.fasta}"
+        " -o {output.bam}##idx##{output.bai}"
+        " {input.cram}"
+
+#ruleorder: split_bam_by_strand > extract_spanning_reads > get_overlapping_alignments
+
+rule extract_spanning_reads:
+    input:
+        bam = "overlapping/{run}/{cell}/{region}.bam",
+        bed = "regions/{region}_isolated_slop5.bed",
+    output:
+        bam = "overlapping/{run}/{cell}/{region}_spanning.bam",
+    singularity: bedtools_container
+    shell:
+        "bedtools intersect"
+        " -u"
+        " -a {input.bam}"
+        " -b {input.bed}"
+        " -F 1" # Read must overlap the entire region
+        " > {output.bam}"
+
+
+rule split_bam_by_strand:
+    input:
+        bam = "overlapping/{run}/{cell}/{region}_spanning.bam",
+    output:
+        bam = "overlapping/{run}/{cell}/{region}_spanning_{direction}.bam"
+    params:
+        flag = lambda wc: "-F 16" if wc.direction == "forward" else "-f 16"
+    singularity: samtools
+    shell:
+        "samtools view"
+        " -bh"
+        " {params.flag}"
+        " {input.bam}"
+        " > {output.bam}"
+
+
+rule pileup_overlapping_aligments:
+    input:
+        bam = "overlapping/{run}/{cell}/{region}_spanning_{direction}.bam",
+        bed = f"regions/{{region}}_isolated_slop{flank}.bed",
+    output:
+        bed = "pileup/{run}/{cell}/{region}_{direction}.bed"
+    singularity: samtools
+    params:
+        fasta = fasta
+    threads: 4
+    shell:
+        "samtools mpileup"
+        " -f {params.fasta}"
+        " -l {input.bed}"
+        " -o {output.bed}"
+        " --no-BAQ"
+        " --min-BQ 0"
+        " -a"
+        " -x" # No overlap removal that modifies the base qualities
+        " {input.bam}"
+
+
+rule get_quals_from_pileup:
+    input:
+        pileup = "pileup/{run}/{cell}/{region}_{direction}.bed",
+        bed = "regions/{region}_isolated.bed",
+    output:
+        tsv = "quals/{run}/{cell}/{region}_{direction}_{method}.tsv"
+    params:
+        script = "../../scripts/mpileup_quals.py",
+        rev = lambda wc: "-r" if wc.direction == "reverse" else "",
+        flank = flank
+    shell:
+        "python {params.script}"
+        " {input.pileup}"
+        " {input.bed}"
+        " {params.rev}"
+        " -f {params.flank}"
+        " -d {wildcards.method}"
+        " > {output.tsv}"
+
+
+rule get_bases_from_pileup:
+    input:
+        pileup = "pileup/{run}/{cell}/{region}_{direction}.bed",
+        bed = "regions/{region}_isolated.bed",
+    output:
+        tsv = "bases/{run}/{cell}/{region}_{direction}_{method}.tsv"
+    params:
+        script = "../../scripts/mpileup_quals.py",
+        rev = lambda wc: "-r" if wc.direction == "reverse" else "",
+        flank = flank
+    shell:
+        "python {params.script}"
+        " {input.pileup}"
+        " {input.bed}"
+        " {params.rev}"
+        " -f {params.flank}"
+        " --mismatch-bases"
+        " -d {wildcards.method}"
+        " > {output.tsv}"
+
