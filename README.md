@@ -1,3 +1,4 @@
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17302040.svg)](https://doi.org/10.5281/zenodo.17302040)
 # Element vs Illumina benchmark
 
 Project: SR_23_02
