@@ -8,7 +8,7 @@ Project: SR_23_02
 - data/wgs: Raw FASTQs. To download data, see [Data download](#data-download) section.
 - analysis: Analysis runs on data, either using Snakemake script or existing Nextflow/nf-core workflow
 - resources: Genome annotations and reference
-- notebooks: Jupyther notebooks for data processing and visualization
+- notebooks: Jupyter notebooks for data processing and visualization
 - scripts: Custom Python scripts
 - figures/svg: SVG figures
 
@@ -38,3 +38,14 @@ Run this within the directory i.e.
 cd data/wgs/PacBio_HiFi_BAMs
 bash download_pacbio_bam_ena.sh
 ```
+
+
+## Software environments
+
+Jupyter notebooks in the folder `notebooks` were executed using a conda as defined in `environment.yml`. Create the conda environment using: 
+
+```
+conda env create -f environment.yml
+```
+
+
