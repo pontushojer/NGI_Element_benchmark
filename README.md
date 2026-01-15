@@ -3,61 +3,53 @@
 
 Project: SR_23_02
 
+This repository contains resources related to the work:
+
+>*Whole genome sequencing with AVITI and NovaSeq X Plus reveals comparable performance with contextual biases*
+
+>Pontus Höjer, Johannes Alneberg, Pär Lundin, Tom Martin, Julia Hauenstein, Helena Fällmar, Magnus Lindell, Christian Natanaelsson, Susana Häggqvist, Adam Ameur, Jessica Nordlund, Robert Månsson Welinder
+
+>bioRxiv 2025.10.10.681584; doi: https://doi.org/10.1101/2025.10.10.681584
+
 ## Data organisation
 
-- **`data/wgs`**: Raw FASTQs organized under here. To download data, see [Data download](#data-download) section.
-- **`analysis`**: Analysis runs on data, either using Snakemake script or existing Nextflow/nf-core workflow
-- **`resources`**: Genome annotations and reference
-- **`notebooks`**: Jupyter notebooks for data processing and visualization
-- **`scripts`**: Custom Python scripts
+- **`data/wgs`**: Raw Element & Illumina FASTQs and PacBio BAMs organized under here. To download data, see [Data download](#data-download) section.
+- **`analysis`**: Analysis runs on data, either using [Snakemake scripts](#running-secondary-snakemake-analysis) or existing [Nextflow nf-core/sarek workflows](#running-nf-coresarek-on-elementillumina-data)
+- **`resources`**: Genome annotations and reference data
+- **`notebooks`**: [Jupyter notebooks](#jupyther-notebooks-execution) for data processing and visualization
+- **`scripts`**: Python scripts used in Snakemake workflows
 - **`figures/svg`**: SVG figures
-- **`env`**: Environment files 
+- **`env`**: Environment related files 
 
 ### Code to figure/table
 
-Notebooks used to generate each figure/table is specified below:
+Jupyter notebooks with workflow folder (Snakemake or Nextflow/nf-core) used to generate each figure/table is specified below:
 
-**Figure 1**
-- b: [duplicates.ipynb](notebooks/duplicates.ipynb)
-- c: [samtools_stats_all.ipynb](notebooks/samtools_stats_all.ipynb)
-- d: [samtools_stats_all.ipynb](notebooks/samtools_stats_all.ipynb)
-- e: [differential_coverage.ipynb](notebooks/differential_coverage.ipynb)
-- f: [variant_calling_benchmarks.ipynb](notebooks/variant_calling_benchmarks.ipynb)
-- g: [variant_calling_benchmarks.ipynb](notebooks/variant_calling_benchmarks.ipynb)
-- h: [variant_calling_benchmarks.ipynb](notebooks/variant_calling_benchmarks.ipynb)
-
-**Figure 2**
-- a: [samtools_stats_per_read.ipynb](notebooks/samtools_stats_per_read.ipynb) 
-- b: [fragurancy_error_rate.ipynb](notebooks/fragurancy_error_rate.ipynb)
-- c: [samtools_stats_per_read_insert_size.ipynb](notebooks/samtools_stats_per_read_insert_size.ipynb)
-- d: [compare_read_stack_multiple.ipynb](notebooks/compare_read_stack_multiple.ipynb)
-
-**Figure 3**
-- b: [g4_soft_clipped.ipynb](notebooks/g4_soft_clipped.ipynb)
-- c: [stratification_error_rate.ipynb](notebooks/stratification_error_rate.ipynb)
-- d: [compare_read_stack_multiple.ipynb](notebooks/compare_read_stack_multiple.ipynb)
-- e: [stratification_error_rate.ipynb](notebooks/stratification_error_rate.ipynb)
-
-**Supplementary Table 5**
-[g4_overlap.ipynb](notebooks/g4_overlap.ipynb)
-
-**Supplementary Figure 2**
-[samtools_stats_all.ipynb](notebooks/samtools_stats_all.ipynb)
-
-**Supplementary Figure 3**
-[duplicates.ipynb](notebooks/duplicates.ipynb)
-
-**Supplementary Figure 4**
-[samtools_stats_all.ipynb](notebooks/samtools_stats_all.ipynb)
-
-**Supplementary Figure 5**
-[samtools_stats_per_read.ipynb](notebooks/samtools_stats_per_read.ipynb) 
-
-**Supplementary Figure 6**
-[samtools_stats_per_read_public.ipynb](notebooks/samtools_stats_per_read_public.ipynb)
-
-**Supplementary Figure 7**
-[fragurancy_error_rate.ipynb](notebooks/fragurancy_error_rate.ipynb)
+| Figure/Table | Notebook | Workflow dir |
+| :--- | :--- | :--- |
+| Figure 1b | [duplicates.ipynb](notebooks/duplicates.ipynb) | `analysis/nfcore_sarek_rerun` |
+| Figure 1c | [samtools_stats_all.ipynb](notebooks/samtools_stats_all.ipynb) | `analysis/nfcore_sarek_rerun` |
+| Figure 1d | [samtools_stats_all.ipynb](notebooks/samtools_stats_all.ipynb) | `analysis/nfcore_sarek_rerun` |
+| Figure 1e | [differential_coverage.ipynb](notebooks/differential_coverage.ipynb) | `analysis/differential_coverage` |
+| Figure 1f | [variant_calling_benchmarks.ipynb](notebooks/variant_calling_benchmarks.ipynb) | `analysis/variant_call_benchmarking` |
+| Figure 1g | [variant_calling_benchmarks.ipynb](notebooks/variant_calling_benchmarks.ipynb) | `analysis/variant_call_benchmarking` |
+| Figure 1h | [variant_calling_benchmarks.ipynb](notebooks/variant_calling_benchmarks.ipynb) | `analysis/variant_call_benchmarking` |
+| Figure 2a | [samtools_stats_per_read.ipynb](notebooks/samtools_stats_per_read.ipynb) | `analysis/error_rate` |
+| Figure 2b | [fraguracy_error_rate.ipynb](notebooks/fraguracy_error_rate.ipynb) | `analysis/error_rate` |
+| Figure 2c | [samtools_stats_per_read_insert_size.ipynb](notebooks/samtools_stats_per_read_insert_size.ipynb) | `analysis/fragment_length_qual_dependence` |
+| Figure 2d | [compare_read_stack_multiple.ipynb](notebooks/compare_read_stack_multiple.ipynb) | `analysis/stack_reads` |
+| Figure 3b | [g4_soft_clipped.ipynb](notebooks/g4_soft_clipped.ipynb) | `analysis/soft_clipped` |
+| Figure 3c | [stratification_error_rate.ipynb](notebooks/stratification_error_rate.ipynb) | `analysis/stratification_error_rate` |
+| Figure 3d | [compare_read_stack_multiple.ipynb](notebooks/compare_read_stack_multiple.ipynb) | `analysis/stack_reads`|
+| Figure 3e | [stratification_error_rate.ipynb](notebooks/stratification_error_rate.ipynb) | `analysis/stratification_error_rate` | 
+| Supplementary Table 2 | | `analysis/illumina_dups_per_lane` |
+| Supplementary Table 5 | [g4_overlap.ipynb](notebooks/g4_overlap.ipynb) | `analysis/g4_overlap` |
+| Supplementary Figure 2 | [samtools_stats_all.ipynb](notebooks/samtools_stats_all.ipynb) | `analysis/nfcore_sarek_rerun` |
+| Supplementary Figure 3 | [duplicates.ipynb](notebooks/duplicates.ipynb) | `analysis/chr20_duplicate`|
+| Supplementary Figure 4 | [samtools_stats_all.ipynb](notebooks/samtools_stats_all.ipynb) | `analysis/nfcore_sarek_rerun` |
+| Supplementary Figure 5 | [samtools_stats_per_read.ipynb](notebooks/samtools_stats_per_read.ipynb) | `analysis/error_rate` |
+| Supplementary Figure 6 | [samtools_stats_per_read_public.ipynb](notebooks/samtools_stats_per_read_public.ipynb) | `analysis/public_data` |
+| Supplementary Figure 7 | [fraguracy_error_rate.ipynb](notebooks/fraguracy_error_rate.ipynb) | `analysis/error_rate` |
 
 ## Reproducing analysis
 
@@ -97,7 +89,7 @@ cd data/wgs/PacBio_HiFi_BAMs
 bash download_pacbio_bam_ena.sh
 ```
 
-# Public Element FreeStyle dataset
+### Public Element FreeStyle dataset
 
 FASTQs be downloaded from here: https://go.elementbiosciences.com/human-whole-genome-sequencing-third-party (dataset `JM-L825-HG002`). Place the FASTQs in the `data/wgs/Element_Freestyle`
  folder.
