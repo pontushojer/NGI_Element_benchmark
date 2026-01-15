@@ -3,13 +3,15 @@
 
 Project: SR_23_02
 
-This repository contains resources related to the work:
+This repository contains resources related to the article:
 
 >*Whole genome sequencing with AVITI and NovaSeq X Plus reveals comparable performance with contextual biases*
 
 >Pontus Höjer, Johannes Alneberg, Pär Lundin, Tom Martin, Julia Hauenstein, Helena Fällmar, Magnus Lindell, Christian Natanaelsson, Susana Häggqvist, Adam Ameur, Jessica Nordlund, Robert Månsson Welinder
 
 >bioRxiv 2025.10.10.681584; doi: https://doi.org/10.1101/2025.10.10.681584
+
+Please use this to cite this work.
 
 ## Data organisation
 
