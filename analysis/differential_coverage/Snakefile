@@ -12,15 +12,22 @@ sbatch command:
 """
 
 from pathlib import Path
+from snakemake.utils import min_version
 
-fasta = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa"
+min_version("8.20.1")
+
+configfile: "../../snakemake_config.yaml"
+
+base_dir = Path(config["base_dir"])
+
+fasta = str(base_dir / config["fasta"])
 
 # This TSV lists all stratifications except for subcategories:
 #  - Ancestry
 #  - FunctionalTechnicallyDifficult
 #  - GenomeSpecific
 # It also adds G4 motifs from pqsfinder v2.0.1 (https://pqsfinder.fi.muni.cz/hub/hg38/pqsfinder_hg38.bed)
-stratification_tsv = Path("/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38@all/GRCh38-all-stratifications.select.tsv")
+stratification_tsv = base_dir / config["stratifications_select"]
 
 runs=["aviti_hq", "aviti_ngi", "xplus_sns"]
 
@@ -32,9 +39,9 @@ cells = [
 ]
 
 # Containers
-d4tools = "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/clinicalgenomics-d4tools.sif"
-pandas = "/vulpes/ngi/containers/biocontainers/depot.galaxyproject.org-singularity-pandas-1.5.2.img"
-samtools = "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
+d4tools = config["containers"]["d4tools"]
+pandas = config["containers"]["pandas"]
+samtools = config["containers"]["samtools"]
 
 
 def parse_stratifications(tsv: Path):
@@ -76,7 +83,7 @@ rule picard_wgs_metrics:
     output:
         txt = "picard/{run}_{cell}.collect_wgs_metrics.txt"
     log: "picard/{run}_{cell}.collect_wgs_metrics.txt.log"
-    singularity: "/vulpes/ngi/containers/biocontainers/singularity-picard-3.0.0--hdfd78af_1.img"
+    singularity: config["containers"]["picard"]
     params:
         fasta = fasta
     shell:
@@ -95,7 +102,7 @@ rule picard_gc_bias:
         txt2 = "picard/{run}_{cell}.gc_summary_metrics.txt",
         pdf = "picard/{run}_{cell}.gc_bias_metrics.pdf"
     log: "picard/{run}_{cell}.gc_bias_metrics.txt.log"
-    singularity: "/vulpes/ngi/containers/biocontainers/singularity-picard-3.0.0--hdfd78af_1.img"
+    singularity: config["containers"]["picard"]
     params:
         fasta = fasta
     shell:
@@ -169,7 +176,7 @@ rule mosdepth:
     params:
         prefix = "mosdepth/{run}_{cell}",
         ref = fasta,
-        executable = "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/mosdepth_d4"
+        executable = config["mosdepth_d4"]
     shell:
         "MOSDEPTH_PRECISION=5 "
         " {params.executable}"
@@ -192,7 +199,7 @@ rule multiqc:
         data = directory("multiqc_data"),
         html = "multiqc_report.html"
     log: "multiqc_report.html.log" 
-    singularity: "/vulpes/common/ngi/containers/biocontainers/singularity-multiqc-1.21--pyhdfd78af_0.img"
+    singularity: config["containers"]["multiqc"]
     shell:
         "multiqc"
         " -m picard"

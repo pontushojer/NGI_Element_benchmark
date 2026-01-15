@@ -7,6 +7,13 @@ sbatch command:
     
     sbatch -A ngi2016004 -J frag_qual -n 20 -p core -t 12:00:00 --wrap "snakemake -p -j 20 --use-singularity -k" --mail-user phojer@kth.se --mail-type ALL
 """
+from pathlib import Path
+from snakemake.utils import min_version
+
+min_version("8.20.1")
+
+configfile: "../../snakemake_config.yaml"
+
 window = 50
 bins = list(range(100,850, window))
 runs=["aviti_hq", "aviti_ngi", "xplus_sns"]
@@ -18,10 +25,12 @@ cells = [
 ]
 reads = ["R1", "R2"]
 
-fasta = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa"
+base_dir = Path(config["base_dir"])
+
+fasta = str(base_dir / config["fasta"])
 
 # Containers
-samtools = "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
+samtools = config["containers"]["samtools"]
 
 
 rule all:

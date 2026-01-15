@@ -84,6 +84,7 @@ def main(args):
             
             dups[di].append(read)
     
+    dups_by_dist = defaultdict(Counter)
     for di, reads in dups.items():
         # Group by read name to get pairs
         reads_by_name = defaultdict(list)
@@ -105,7 +106,8 @@ def main(args):
         for p1, p2 in combinations(pairs, 2):
             stats["Pair combos"] += 1
 
-            proximal = p1.distance_to(p2) < args.dist_optical
+            distance = p1.distance_to(p2)
+            proximal = distance < args.dist_optical
             complementary = p1.is_fr() != p2.is_fr()
 
             if proximal and not complementary:
@@ -116,12 +118,28 @@ def main(args):
 
             stats[f"Pair combos {ptype}"] += 1
 
+            if distance != float("inf"):
+                distance_by_10 = 10 * (distance // 10)
+                dups_by_dist[distance_by_10][complementary] += 1 
+
     for k in list(stats):
         if k.startswith("Pair combos "):
             stats["Pct" + k] = round(100 * stats[k] / stats["Pair combos"], 1)
     
-    for k,v in sorted(stats.items()):
-        print(f"{k:<30}: {v:>10}")
+    with open(args.prefix + ".stats.txt", "w") as f:
+        for k,v in sorted(stats.items()):
+            print(f"{k:<30}: {v:>10}", file=f)
+
+
+    with open(args.prefix + ".distances.csv", "w") as f:
+        print("Distance,Dups,ComplementaryDups,NoncomplementaryDups", file=f)
+        for dist, data in sorted(dups_by_dist.items()):
+            comp_dups = data[True]
+            noncomp_dups = data[False]
+            total_dups = comp_dups + noncomp_dups
+
+            print(dist,total_dups,comp_dups,noncomp_dups, sep=",", file=f)
+            
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Analyze duplicate types.")
@@ -130,6 +148,8 @@ if __name__ == "__main__":
                         help="Physical distance above which reads are consider optical duplicates. "
                              "See https://gatk.broadinstitute.org/hc/en-us/articles/360036862931-MarkDuplicates-Picard. "
                               "Default: %(default)s (recommended for patterned FCs)")
+    parser.add_argument("-p", "--prefix", 
+                        help="Prefix for output files ´<prefix>.stats.txt´ and ´<prefix>.distances.csv´")
     args = parser.parse_args()
     
     main(args)

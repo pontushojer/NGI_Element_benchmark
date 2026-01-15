@@ -1,0 +1,40 @@
+# Replace with the top directory for the project repository
+base_dir: "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina"
+
+# === RESOURCE PATHS ==
+# Relative paths to resources used by workflows 
+# Genome
+fasta: "resources/GRCh38_GIABv3/unbgzipped/genome.fa"
+genome: "resources/GRCh38_GIABv3/GRCh38_GIABv3.genome"
+
+# GIAB Stratifications
+stratifications_dir: "resources/GRCh38@all"
+stratifications_all: "resources/GRCh38@all/GRCh38-all-stratifications.tsv"
+stratifications_select: "resources/GRCh38@all/GRCh38-all-stratifications.select.tsv"
+
+# Putative G4 from pqsfinder 
+g4_bed: "resources/G4/pqsfinder_hg38.sort.bed"
+g4_bed_gz: "resources/G4/pqsfinder_hg38.sort.3tab.bed.gz"
+avidity_repo: "scripts/AvidityManuscript2023"
+
+# === TOOLS ===
+# Use absolute paths for Executables and Containers
+# Executables
+fraguracy: "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/fraguracy-0.2.4" # Downloaded from https://github.com/brentp/fraguracy/releases/download/v0.2.4/fraguracy
+mosdepth_d4: "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/mosdepth_d4" # Downloaded from https://github.com/brentp/mosdepth/releases/download/v0.3.10/mosdepth_d4
+
+# Containers
+containers:
+  bcftools: "/vulpes/ngi/containers/biocontainers/singularity-bcftools-1.18--h8b25389_0.img"
+  bedtools_2.31.1: "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/singularity-bedtools-2.31.1--hf5e1c6e_2.img" 
+  bedtools: "/vulpes/ngi/containers/biocontainers/singularity-bedtools-2.30.0--hc088bd4_0.img"
+  d4tools: "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/clinicalgenomics-d4tools.sif"
+  deepvariant: "/vulpes/common/ngi/containers/biocontainers/nf-core-deepvariant-1.5.0.img"
+  gatk: "/vulpes/ngi/containers/biocontainers/singularity-gatk4-4.5.0.0--py36hdfd78af_0.img"
+  happy: "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/hap.py_rtg-tools_2ebb433f3ce976d3.img"
+  mosdepth: "/vulpes/ngi/containers/biocontainers/singularity-mosdepth-0.3.8--hd299d5a_0.img" 
+  multiqc: "/vulpes/common/ngi/containers/biocontainers/singularity-multiqc-1.21--pyhdfd78af_0.img"
+  pandas: "/vulpes/ngi/containers/biocontainers/depot.galaxyproject.org-singularity-pandas-1.5.2.img"
+  picard: "/vulpes/ngi/containers/biocontainers/singularity-picard-3.0.0--hdfd78af_1.img"
+  rtgtools: "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/rtg-tools_realtimegenomics_3.12.1.sif"
+  samtools: "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img" 

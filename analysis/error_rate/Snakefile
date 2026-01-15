@@ -7,6 +7,15 @@ sbatch command:
     
     sbatch -A ngi2016004 -J error_rate -n 12 -p core -t 2:00:00 --wrap "snakemake -p -j 12 --use-singularity -k" --mail-user phojer@kth.se --mail-type ALL
 """
+from pathlib import Path
+from snakemake.utils import min_version
+
+min_version("8.20.1")
+
+configfile: "../../snakemake_config.yaml"
+
+base_dir = Path(config["base_dir"])
+
 runs=["aviti_hq", "aviti_ngi", "xplus_sns"]
 cells = [
     "KMS12BM", 
@@ -18,12 +27,12 @@ cells_no_reh = [c for c in cells if c != "REH"]
 
 reads = ["R1", "R2"]
 
-fasta = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa"
+fasta = str(base_dir / config["fasta"])
 
 # Containers and executables
-fragurancy="/vulpes/proj/ngis/ngi2016004/private/pontus/tools/fraguracy-0.2.4"
-samtools = "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
-bedtools_container = "/vulpes/ngi/containers/biocontainers/singularity-bedtools-2.30.0--hc088bd4_0.img"
+fraguracy = config["fraguracy"]
+samtools = config["containers"]["samtools"]
+bedtools_container = config["containers"]["bedtools"]
 
 
 def get_cram(wildcards):
@@ -37,10 +46,8 @@ def get_cram(wildcards):
 rule all:
     input:
         expand("samtools_stats/{run}/{cell}_{read}_chr20_stats.txt", read=reads, run=runs, cell=cells),
-        expand("samtools_stats_filt/{run}/{cell}_{read}_chr20_stats.txt", read=reads, run=runs, cell=cells_no_reh),
-        expand("fragurancy/{run}_{cell}{cell}_{cell}-counts.txt", run=runs, cell=cells),
-        expand("fragurancy_filt/{run}_{cell}{cell}_{cell}-counts.txt", run=runs, cell=cells_no_reh),
-
+        expand("fraguracy/{run}_{cell}{cell}_{cell}-counts.txt", run=runs, cell=cells),
+    
 
 rule stats:
     input:
@@ -64,7 +71,7 @@ rule get_chr20_bed:
     output:
         "chr20.bed"
     params:
-        fai = fasta + ".fai"
+        fai = str(fasta) + ".fai"
     shell:
         "awk '$1 == \"chr20\" {{OFS=\"\\t\"; print $1, 0, $2}}' {params.fai} > {output}"
 
@@ -85,85 +92,26 @@ rule extract_chr20:
         "samtools index {output.bam}"
 
 
-rule fragurancy:
+rule fraguracy:
     input:
         bam = "bam/{run}_{cell}_chr20.bam",
         bai = "bam/{run}_{cell}_chr20.bam.bai"
     output:
         multiext(
-            "fragurancy/{run}_{cell}{cell}_{cell}-", 
+            "fraguracy/{run}_{cell}{cell}_{cell}-", 
             "errors.bed.gz", 
             "indel-errors.bed.gz", 
             "counts.txt",
         )
     params:
-        fragurancy = fragurancy,
+        fraguracy = fraguracy,
         fasta = fasta,
-        prefix = "fragurancy/{run}_{cell}"
+        prefix = "fraguracy/{run}_{cell}"
     shell:
-        "{params.fragurancy} extract"
+        "{params.fraguracy} extract"
         " --fasta {params.fasta}"
         " --output-prefix {params.prefix}"
         " --no-denominator"
         " --bin-size 1"
         " {input.bam}"
         " &> {params.prefix}-extract.log"
-
-
-rule non_variant_positions:
-    input:
-        vcf = "../variant_call_benchmarking/deepvariant/pacbio/{cell}_chr20_PASS.vcf.gz",
-        bed = "chr20.bed"
-    output:
-        bed = "non_variant_positions/{cell}_chr20.bed"
-    singularity: bedtools_container
-    shell:
-        "bedtools subtract -a {input.bed} -b {input.vcf} > {output.bed}"
-
-
-rule stats_non_variant:
-    input:
-        bam = "bam/{run}_{cell}_chr20.bam",
-        bai = "bam/{run}_{cell}_chr20.bam.bai",
-        bed = "non_variant_positions/{cell}_chr20.bed"
-    output:
-        txt = "samtools_stats_filt/{run}/{cell}_{read}_chr20_stats.txt"
-    singularity: samtools
-    params:
-        flag = lambda wildcards: {
-            "R1": 64,  # Read1 
-            "R2": 128  # Read2
-            }[wildcards.read],
-        ref = fasta
-    shell:
-        "samtools view -bh  -T {params.ref} -q 60 -f {params.flag} {input.bam}"
-        " | "
-        "samtools stats -t {input.bed} -r {params.ref} - > {output.txt}"
-
-
-rule fragurancy_filt:
-    input:
-        bam = "bam/{run}_{cell}_chr20.bam",
-        bai = "bam/{run}_{cell}_chr20.bam.bai",
-        bed = "non_variant_positions/{cell}_chr20.bed"
-    output:
-        multiext(
-            "fragurancy_filt/{run}_{cell}{cell}_{cell}-", 
-            "errors.bed.gz", 
-            "indel-errors.bed.gz", 
-            "counts.txt",
-        )
-    params:
-        fragurancy = fragurancy,
-        fasta = fasta,
-        prefix = "fragurancy_filt/{run}_{cell}"
-    shell:
-        "{params.fragurancy} extract"
-        " --fasta {params.fasta}"
-        " --output-prefix {params.prefix}"
-        " --no-denominator"
-        " --regions {input.bed}"
-        " --bin-size 1"
-        " {input.bam}"
-        " &> {params.prefix}-extract.log"
-

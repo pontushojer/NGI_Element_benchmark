@@ -1,0 +1,43 @@
+configfile: "../../snakemake_config.yaml"
+
+rule all:
+    input:
+        "GRCh38_GIABv3.genome",
+        "unbgzipped/genome.fa",
+        "unbgzipped/genome.fa.fai",
+
+
+rule download_fasta:
+    output:
+        fasta = "GRCh38_GIABv3_no_alt_analysis_set_maskedGRC_decoys_MAP2K3_KMT2C_KCNJ18.fasta.gz"
+    shell:
+        "wget https://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/references/GRCh38/GRCh38_GIABv3_no_alt_analysis_set_maskedGRC_decoys_MAP2K3_KMT2C_KCNJ18.fasta.gz"
+
+
+rule ungzip:
+    input:
+        fasta = "GRCh38_GIABv3_no_alt_analysis_set_maskedGRC_decoys_MAP2K3_KMT2C_KCNJ18.fasta.gz"
+    output:
+        fasta = "unbgzipped/genome.fa"
+    shell:
+        "gunzip -c {input.fasta} > {output.fasta}"
+
+
+rule index_fasta:
+    input:
+        fasta = "unbgzipped/genome.fa"
+    output:
+        fai = "unbgzipped/genome.fa.fai"
+    singularity: config["containers"]["samtools"]
+    shell:
+        "samtools faidx {input.fasta}"
+
+
+rule make_genome_file:
+    input:
+        fai = "unbgzipped/genome.fa.fai"
+    output:
+        genome = "GRCh38_GIABv3.genome"
+    shell:
+        "cut -f 1,2 {input.fai} > {output.genome}"
+

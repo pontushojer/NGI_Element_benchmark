@@ -1,9 +1,9 @@
-# This file was produced by samtools stats (1.21+htslib-1.21) and can be plotted using plot-bamstats
+# This file was produced by samtools stats (1.19.2+htslib-1.19.1) and can be plotted using plot-bamstats
 # This file contains statistics for all reads.
-# The command line was:  stats -r /Users/pontus.hojer/analysis/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/GRCh38_GIABv3_no_alt_analysis_set_maskedGRC_decoys_MAP2K3_KMT2C_KCNJ18.fasta.gz -
+# The command line was:  stats -r /vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa -
 # CHK, Checksum	[2]Read Names	[3]Sequences	[4]Qualities
 # CHK, CRC32 of reads which passed filtering followed by addition (32bit overflow)
-CHK	00000000	00000000	00000000
+CHK	b9ea1aab	f883320b	e36f5633
 # Summary Numbers. Use `grep ^SN | cut -f 2-` to extract this part.
 SN	raw total sequences:	0	# excluding supplementary and secondary reads
 SN	filtered sequences:	0
@@ -20,12 +20,12 @@ SN	reads duplicated:	0	# PCR or optical duplicate bit set
 SN	reads MQ0:	0	# mapped and MQ=0
 SN	reads QC failed:	0
 SN	non-primary alignments:	0
-SN	supplementary alignments:	0
+SN	supplementary alignments:	1
 SN	total length:	0	# ignores clipping
 SN	total first fragment length:	0	# ignores clipping
 SN	total last fragment length:	0	# ignores clipping
 SN	bases mapped:	0	# ignores clipping
-SN	bases mapped (cigar):	0	# more accurate
+SN	bases mapped (cigar):	31	# more accurate
 SN	bases trimmed:	0
 SN	bases duplicated:	0
 SN	mismatches:	0	# from NM fields
@@ -33,8 +33,8 @@ SN	error rate:	0.000000e+00	# mismatches / bases mapped (cigar)
 SN	average length:	0
 SN	average first fragment length:	0
 SN	average last fragment length:	0
-SN	maximum length:	0
-SN	maximum first fragment length:	0
+SN	maximum length:	150
+SN	maximum first fragment length:	150
 SN	maximum last fragment length:	0
 SN	average quality:	0.0
 SN	insert size average:	0.0
@@ -46,12 +46,312 @@ SN	pairs on different chromosomes:	0
 SN	percentage of properly paired reads (%):	0.0
 # First Fragment Qualities. Use `grep ^FFQ | cut -f 2-` to extract this part.
 # Columns correspond to qualities and rows to cycles. First column is the cycle number.
+FFQ	1	0	0
+FFQ	2	0	0
+FFQ	3	0	0
+FFQ	4	0	0
+FFQ	5	0	0
+FFQ	6	0	0
+FFQ	7	0	0
+FFQ	8	0	0
+FFQ	9	0	0
+FFQ	10	0	0
+FFQ	11	0	0
+FFQ	12	0	0
+FFQ	13	0	0
+FFQ	14	0	0
+FFQ	15	0	0
+FFQ	16	0	0
+FFQ	17	0	0
+FFQ	18	0	0
+FFQ	19	0	0
+FFQ	20	0	0
+FFQ	21	0	0
+FFQ	22	0	0
+FFQ	23	0	0
+FFQ	24	0	0
+FFQ	25	0	0
+FFQ	26	0	0
+FFQ	27	0	0
+FFQ	28	0	0
+FFQ	29	0	0
+FFQ	30	0	0
+FFQ	31	0	0
+FFQ	32	0	0
+FFQ	33	0	0
+FFQ	34	0	0
+FFQ	35	0	0
+FFQ	36	0	0
+FFQ	37	0	0
+FFQ	38	0	0
+FFQ	39	0	0
+FFQ	40	0	0
+FFQ	41	0	0
+FFQ	42	0	0
+FFQ	43	0	0
+FFQ	44	0	0
+FFQ	45	0	0
+FFQ	46	0	0
+FFQ	47	0	0
+FFQ	48	0	0
+FFQ	49	0	0
+FFQ	50	0	0
+FFQ	51	0	0
+FFQ	52	0	0
+FFQ	53	0	0
+FFQ	54	0	0
+FFQ	55	0	0
+FFQ	56	0	0
+FFQ	57	0	0
+FFQ	58	0	0
+FFQ	59	0	0
+FFQ	60	0	0
+FFQ	61	0	0
+FFQ	62	0	0
+FFQ	63	0	0
+FFQ	64	0	0
+FFQ	65	0	0
+FFQ	66	0	0
+FFQ	67	0	0
+FFQ	68	0	0
+FFQ	69	0	0
+FFQ	70	0	0
+FFQ	71	0	0
+FFQ	72	0	0
+FFQ	73	0	0
+FFQ	74	0	0
+FFQ	75	0	0
+FFQ	76	0	0
+FFQ	77	0	0
+FFQ	78	0	0
+FFQ	79	0	0
+FFQ	80	0	0
+FFQ	81	0	0
+FFQ	82	0	0
+FFQ	83	0	0
+FFQ	84	0	0
+FFQ	85	0	0
+FFQ	86	0	0
+FFQ	87	0	0
+FFQ	88	0	0
+FFQ	89	0	0
+FFQ	90	0	0
+FFQ	91	0	0
+FFQ	92	0	0
+FFQ	93	0	0
+FFQ	94	0	0
+FFQ	95	0	0
+FFQ	96	0	0
+FFQ	97	0	0
+FFQ	98	0	0
+FFQ	99	0	0
+FFQ	100	0	0
+FFQ	101	0	0
+FFQ	102	0	0
+FFQ	103	0	0
+FFQ	104	0	0
+FFQ	105	0	0
+FFQ	106	0	0
+FFQ	107	0	0
+FFQ	108	0	0
+FFQ	109	0	0
+FFQ	110	0	0
+FFQ	111	0	0
+FFQ	112	0	0
+FFQ	113	0	0
+FFQ	114	0	0
+FFQ	115	0	0
+FFQ	116	0	0
+FFQ	117	0	0
+FFQ	118	0	0
+FFQ	119	0	0
+FFQ	120	0	0
+FFQ	121	0	0
+FFQ	122	0	0
+FFQ	123	0	0
+FFQ	124	0	0
+FFQ	125	0	0
+FFQ	126	0	0
+FFQ	127	0	0
+FFQ	128	0	0
+FFQ	129	0	0
+FFQ	130	0	0
+FFQ	131	0	0
+FFQ	132	0	0
+FFQ	133	0	0
+FFQ	134	0	0
+FFQ	135	0	0
+FFQ	136	0	0
+FFQ	137	0	0
+FFQ	138	0	0
+FFQ	139	0	0
+FFQ	140	0	0
+FFQ	141	0	0
+FFQ	142	0	0
+FFQ	143	0	0
+FFQ	144	0	0
+FFQ	145	0	0
+FFQ	146	0	0
+FFQ	147	0	0
+FFQ	148	0	0
+FFQ	149	0	0
+FFQ	150	0	0
 # Last Fragment Qualities. Use `grep ^LFQ | cut -f 2-` to extract this part.
 # Columns correspond to qualities and rows to cycles. First column is the cycle number.
 # Mismatches per cycle and quality. Use `grep ^MPC | cut -f 2-` to extract this part.
 # Columns correspond to qualities, rows to cycles. First column is the cycle number, second
 # is the number of N's and the rest is the number of mismatches
 MPC	1	0	0
+MPC	2	0	0
+MPC	3	0	0
+MPC	4	0	0
+MPC	5	0	0
+MPC	6	0	0
+MPC	7	0	0
+MPC	8	0	0
+MPC	9	0	0
+MPC	10	0	0
+MPC	11	0	0
+MPC	12	0	0
+MPC	13	0	0
+MPC	14	0	0
+MPC	15	0	0
+MPC	16	0	0
+MPC	17	0	0
+MPC	18	0	0
+MPC	19	0	0
+MPC	20	0	0
+MPC	21	0	0
+MPC	22	0	0
+MPC	23	0	0
+MPC	24	0	0
+MPC	25	0	0
+MPC	26	0	0
+MPC	27	0	0
+MPC	28	0	0
+MPC	29	0	0
+MPC	30	0	0
+MPC	31	0	0
+MPC	32	0	0
+MPC	33	0	0
+MPC	34	0	0
+MPC	35	0	0
+MPC	36	0	0
+MPC	37	0	0
+MPC	38	0	0
+MPC	39	0	0
+MPC	40	0	0
+MPC	41	0	0
+MPC	42	0	0
+MPC	43	0	0
+MPC	44	0	0
+MPC	45	0	0
+MPC	46	0	0
+MPC	47	0	0
+MPC	48	0	0
+MPC	49	0	0
+MPC	50	0	0
+MPC	51	0	0
+MPC	52	0	0
+MPC	53	0	0
+MPC	54	0	0
+MPC	55	0	0
+MPC	56	0	0
+MPC	57	0	0
+MPC	58	0	0
+MPC	59	0	0
+MPC	60	0	0
+MPC	61	0	0
+MPC	62	0	0
+MPC	63	0	0
+MPC	64	0	0
+MPC	65	0	0
+MPC	66	0	0
+MPC	67	0	0
+MPC	68	0	0
+MPC	69	0	0
+MPC	70	0	0
+MPC	71	0	0
+MPC	72	0	0
+MPC	73	0	0
+MPC	74	0	0
+MPC	75	0	0
+MPC	76	0	0
+MPC	77	0	0
+MPC	78	0	0
+MPC	79	0	0
+MPC	80	0	0
+MPC	81	0	0
+MPC	82	0	0
+MPC	83	0	0
+MPC	84	0	0
+MPC	85	0	0
+MPC	86	0	0
+MPC	87	0	0
+MPC	88	0	0
+MPC	89	0	0
+MPC	90	0	0
+MPC	91	0	0
+MPC	92	0	0
+MPC	93	0	0
+MPC	94	0	0
+MPC	95	0	0
+MPC	96	0	0
+MPC	97	0	0
+MPC	98	0	0
+MPC	99	0	0
+MPC	100	0	0
+MPC	101	0	0
+MPC	102	0	0
+MPC	103	0	0
+MPC	104	0	0
+MPC	105	0	0
+MPC	106	0	0
+MPC	107	0	0
+MPC	108	0	0
+MPC	109	0	0
+MPC	110	0	0
+MPC	111	0	0
+MPC	112	0	0
+MPC	113	0	0
+MPC	114	0	0
+MPC	115	0	0
+MPC	116	0	0
+MPC	117	0	0
+MPC	118	0	0
+MPC	119	0	0
+MPC	120	0	0
+MPC	121	0	0
+MPC	122	0	0
+MPC	123	0	0
+MPC	124	0	0
+MPC	125	0	0
+MPC	126	0	0
+MPC	127	0	0
+MPC	128	0	0
+MPC	129	0	0
+MPC	130	0	0
+MPC	131	0	0
+MPC	132	0	0
+MPC	133	0	0
+MPC	134	0	0
+MPC	135	0	0
+MPC	136	0	0
+MPC	137	0	0
+MPC	138	0	0
+MPC	139	0	0
+MPC	140	0	0
+MPC	141	0	0
+MPC	142	0	0
+MPC	143	0	0
+MPC	144	0	0
+MPC	145	0	0
+MPC	146	0	0
+MPC	147	0	0
+MPC	148	0	0
+MPC	149	0	0
+MPC	150	0	0
+MPC	151	0	0
 # GC Content of first fragments. Use `grep ^GCF | cut -f 2-` to extract this part.
 # GC Content of last fragments. Use `grep ^GCL | cut -f 2-` to extract this part.
 # ACGT content per cycle. Use `grep ^GCC | cut -f 2-` to extract this part. The columns are: cycle; A,C,G,T base counts as a percentage of all A/C/G/T bases [%]; and N and O counts as a percentage of all A/C/G/T bases [%]
@@ -70,4 +370,6 @@ LTC	0	0	0	0	0
 # Indel distribution. Use `grep ^ID | cut -f 2-` to extract this part. The columns are: length, number of insertions, number of deletions
 # Indels per cycle. Use `grep ^IC | cut -f 2-` to extract this part. The columns are: cycle, number of insertions (fwd), .. (rev) , number of deletions (fwd), .. (rev)
 # Coverage distribution. Use `grep ^COV | cut -f 2-` to extract this part.
+COV	[1-1]	1	31
 # GC-depth. Use `grep ^GCD | cut -f 2-` to extract this part. The columns are: GC%, unique sequence percentiles, 10th, 25th, 50th, 75th and 90th depth percentile
+GCD	0.0	100.000	0.000	0.000	0.000	0.000	0.000

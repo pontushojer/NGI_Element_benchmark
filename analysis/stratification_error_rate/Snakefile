@@ -7,6 +7,12 @@ sbatch command:
     
     sbatch -A ngi2016004 -J g4 -n 24 -p core -t 1:00:00 --wrap "snakemake -p -j 24 --use-singularity -k" --mail-user phojer@kth.se --mail-type ALL
 """
+from pathlib import Path
+from snakemake.utils import min_version
+
+min_version("8.20.1")
+
+configfile: "../../snakemake_config.yaml"
 
 runs = [
     "aviti_hq",
@@ -23,31 +29,36 @@ cells = [
 
 directions = ["forward", "reverse"]
 methods = ["middle", "squach", "restrict"]
+
+base_dir = Path(config["base_dir"])
+
 # From GIAB references
-fasta = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa"
+fasta = str(base_dir / config["fasta"])
 
 # From GIAB stratifications v3.5
-autosomal_bed = "../../resources/GRCh38@all/XY/GRCh38_AllAutosomes.bed.gz"
+stratifications_dir = base_dir / config["stratifications_dir"]
+autosomal_bed = stratifications_dir / "XY/GRCh38_AllAutosomes.bed.gz"
 
 # https://pqsfinder.fi.muni.cz/hub/hg38/pqsfinder_hg38.bed
-g4_bed = "../../resources/G4/pqsfinder_hg38.sort.bed"
+g4_pqsfinder = str(base_dir / config["g4_bed"])
+
 regions = {
-    "g4": "../../resources/G4/pqsfinder_hg38.sort.bed",
-    "homopolymer7to11": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_homopolymer_7to11_slop5.bed.gz",
-    "homopolymer7to11GC": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_homopolymer_7to11_GC_slop5.bed.gz",
-    "homopolymerge12": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_homopolymer_ge12_slop5.bed.gz",
-    "homopolymerge12GC": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_homopolymer_ge12_GC_slop5.bed.gz",
-    "imperfecthomopolge11": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_imperfecthomopolge11_slop5.bed.gz",
-    "imperfecthomopolge11GC": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_imperfecthomopolge11_GC_slop5.bed.gz",
-    "diTR10to49": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_diTR_10to49_slop5.bed.gz",
-    "triTR14to49": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_triTR_14to49_slop5.bed.gz",
-    "quadTR19to49": "../../resources/GRCh38@all/LowComplexity/GRCh38_SimpleRepeat_quadTR_19to49_slop5.bed.gz",
-    "random": "../stack_reads/random_l30_n1000000.bed.gz"
+    "g4": g4_pqsfinder,
+    "homopolymer7to11": str(stratifications_dir / "LowComplexity/GRCh38_SimpleRepeat_homopolymer_7to11_slop5.bed.gz"),
+    "homopolymer7to11GC": str(stratifications_dir / "LowComplexity/GRCh38_SimpleRepeat_homopolymer_7to11_GC_slop5.bed.gz"),
+    "homopolymerge12": str(stratifications_dir / "LowComplexity/GRCh38_SimpleRepeat_homopolymer_ge12_slop5.bed.gz"),
+    "homopolymerge12GC": str(stratifications_dir / "LowComplexity/GRCh38_SimpleRepeat_homopolymer_ge12_GC_slop5.bed.gz"),
+    "imperfecthomopolge11": str(stratifications_dir / "LowComplexity/GRCh38_SimpleRepeat_imperfecthomopolge11_slop5.bed.gz"),
+    "imperfecthomopolge11GC": str(stratifications_dir / "LowComplexity/GRCh38_SimpleRepeat_imperfecthomopolge11_GC_slop5.bed.gz"),
+    "diTR10to49": str(stratifications_dir / "LowComplexity/GRCh38_SimpleRepeat_diTR_10to49_slop5.bed.gz"),
+    "triTR14to49": str(stratifications_dir / "LowComplexity/GRCh38_SimpleRepeat_triTR_14to49_slop5.bed.gz"),
+    "quadTR19to49": str(stratifications_dir / "LowComplexity/GRCh38_SimpleRepeat_quadTR_19to49_slop5.bed.gz"),
+    "random": "random_l30_n1000000.bed.gz"
 }
 
 # Container
-samtools = "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
-bedtools_container = "/vulpes/ngi/containers/biocontainers/singularity-bedtools-2.30.0--hc088bd4_0.img"
+samtools = config["containers"]["samtools"]
+bedtools_container =  config["containers"]["bedtools"]
 
 
 def get_cram(wildcards):
@@ -85,6 +96,35 @@ rule all:
             region=regions.keys(),
             method=methods,
         ),
+
+
+rule get_genome:
+    # Only chr1-22 + chrX + chrY
+    output:
+        "GRCh38.genome"
+    params:
+        fai = str(fasta) + ".fai"
+    shell:
+        "head -24 {params.fai} | cut -f -2 > {output}"        
+
+
+rule get_random:
+    input:
+        genome = "GRCh38.genome"
+    output:
+        bed = "random_l{len}_n{number}.bed.gz",
+    singularity: bedtools_container
+    shell:
+        "bedtools random"
+        " -g {input.genome}"
+        " -l {wildcards.len}"
+        " -n {wildcards.number}"
+        " | "
+        "cut -f -3"
+        " | "
+        "bedtools sort -i stdin"
+        " | "
+        "gzip -c > {output.bed}"
 
 
 rule correct_slop:

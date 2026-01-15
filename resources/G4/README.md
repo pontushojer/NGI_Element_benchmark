@@ -12,15 +12,6 @@ All tracks were computed using pqsfinder v2.0.1 with default algorithm options.
 
 Sorted with `bedtools sort`
 
-## G4-seq data
+Converted to 3 field BED and bgzipped using:
 
-Article: https://academic.oup.com/nar/article/47/8/3862/5403498?login=true#134281339
-Downloaded from GEO: https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE110582
-
-From HEK-293T cells
-
-Observed G4 motifs 
-- GSM3003540_Homo_all_w15_th-1_minus.hits.max.PDS.w50.35.bed.gz
-- GSM3003540_Homo_all_w15_th-1_plus.hits.max.PDS.w50.35.bed.gz
-
-
+cut -f -3 pqsfinder_hg38.sort.bed | bgzip -c > pqsfinder_hg38.sort.3tab.bed.gz

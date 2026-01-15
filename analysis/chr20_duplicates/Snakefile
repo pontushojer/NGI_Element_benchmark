@@ -7,19 +7,24 @@ load modules:
 
 sbatch command:
     
-    sbatch -A ngi2016004 -J chr20_dups -n 24 -p core -t 12:00:00 --wrap "snakemake -p -j 24 --use-singularity -k" --mail-user phojer@kth.se --mail-type ALL
+    sbatch -A ngi2016004 -J chr20_dups -n 12 -p core -t 12:00:00 --wrap "snakemake -p -j 12 --use-singularity -k" --mail-user phojer@kth.se --mail-type ALL
 
 """
 from pathlib import Path
+from snakemake.utils import min_version
+
+min_version("8.20.1")
+
+configfile: "../../snakemake_config.yaml"
 
 runs=["aviti_hq", "aviti_ngi", "xplus_sns"]
 cells = ["KMS12BM", "MM1S", "OPM2", "REH"]
 
-base_dir = Path("/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina")
+base_dir = Path(config["base_dir"])
 
-avidity = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/envs/avidity.sif"
+avidity = config["containers"]["avidity"]
 
-fasta = base_dir / "resources/GRCh38_GIABv3/unbgzipped/genome.fa"
+fasta = base_dir / config["fasta"]
 
 wildcard_constraints:
     cell="\w+",
@@ -30,7 +35,7 @@ rule all:
     input:
         expand("{run}_{cell}.chr20.bam", cell=cells, run=runs),
         expand("dups/{run}_{cell}.chr20.dup_only.bam", cell=cells, run=runs),
-        expand("dups/{run}_{cell}.chr20.dup_only.distances.txt", cell=cells, run=runs),
+        expand("dups/{run}_{cell}.chr20.dup_only.distances.csv", cell=cells, run=runs),
         expand("dups/{run}_{cell}.chr20.dup_only.stats.txt", cell=cells, run=runs),
 
 
@@ -41,7 +46,7 @@ rule extract_chr20_alignments:
     output:
         bam = "{run}_{cell}.chr20.bam",
         bai = "{run}_{cell}.chr20.bam.bai"
-    singularity: "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
+    singularity: config["containers"]["samtools"]
     threads: 4
     params:
         ref = fasta
@@ -56,6 +61,7 @@ rule extract_chr20_alignments:
         " && "
         "samtools index {output.bam}"
 
+
 rule remark_duplicates:
     # Add DI and DS tags to the BAM file
     input:
@@ -64,7 +70,7 @@ rule remark_duplicates:
         bam = "dups/{run}_{cell}.chr20.bam",
         txt = "dups/{run}_{cell}.chr20.bam.metrics.txt"
     log: "dups/{run}_{cell}.chr20.bam.log"
-    singularity: "/vulpes/ngi/containers/biocontainers/singularity-gatk4-4.5.0.0--py36hdfd78af_0.img"
+    singularity: config["containers"]["gatk"]
     shell:
         """
         gatk MarkDuplicates \
@@ -75,17 +81,19 @@ rule remark_duplicates:
         &> {log}
         """
 
+
 rule extract_duplicates:
     # Extract only the duplicate related reads from the BAM file
     input:
         bam = "dups/{run}_{cell}.chr20.bam"
     output:
         bam = "dups/{run}_{cell}.chr20.dup_only.sam",
-    singularity: "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
+    singularity: config["containers"]["samtools"]
     shell:
         """
         samtools view -h -d DI --keep-tag DI,DS,RG {input.bam} > {output.bam}
         """
+
 
 rule sam_to_bam:
     # Convert the SAM file to BAM format
@@ -94,34 +102,26 @@ rule sam_to_bam:
     output:
         bam = "dups/{run}_{cell}.chr20.dup_only.bam",
         bai = "dups/{run}_{cell}.chr20.dup_only.bam.bai"
-    singularity: "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
+    singularity: config["containers"]["samtools"]
     threads: 2
     shell:
         """
         samtools view -@ {threads} -bSh {input.sam} -o {output.bam}##idx##{output.bai} --write-index
         """
 
-rule get_duplicate_distances:
-    input:
-        sam = "dups/{run}_{cell}.chr20.dup_only.sam"
-    output:
-        txt = "dups/{run}_{cell}.chr20.dup_only.distances.txt"
-    shell:
-        "python dup_dists.py {input.sam} > {output.txt}"
 
 rule duplicate_stats:
     input:
         bam = "dups/{run}_{cell}.chr20.dup_only.bam"
     output:
-        txt = "dups/{run}_{cell}.chr20.dup_only.stats.txt"
-    singularity: avidity
+        txt = "dups/{run}_{cell}.chr20.dup_only.stats.txt",
+        csv = "dups/{run}_{cell}.chr20.dup_only.distances.csv"
+    singularity: str(avidity)
     params:
-        script = "../../scripts/duplicates.py"
+        script = "../../scripts/duplicates.py",
+        prefix = "dups/{run}_{cell}.chr20.dup_only"
     shell:
         "/opt/conda/envs/AvidityManuscript2023/bin/python"
         " {params.script}"
+        " --prefix {params.prefix}"
         " {input.bam}"
-        " > {output.txt}"
-
-    
-

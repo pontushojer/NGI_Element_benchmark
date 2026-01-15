@@ -8,12 +8,20 @@ sbatch command:
     sbatch -A ngi2016004 -J stack_reads -n 48 -p core -t 10:00:00 --wrap "snakemake -p -j 48 --use-singularity -k --rerun-incomplete" --mail-user phojer@kth.se --mail-type ALL
 """
 from pathlib import Path
+from snakemake.utils import min_version
 
-resources_dir = Path("/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources")
-code_dir = Path("/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/scripts")
+min_version("8.20.1")
+
+configfile: "../../snakemake_config.yaml"
+
+
+base_dir = Path(config["base_dir"])
+
+stratifications_dir = base_dir / config["stratifications_dir"]
+repo_dir = base_dir / config["avidity_repo"]
 
 # From GIAB references
-fasta = resources_dir / "GRCh38_GIABv3/unbgzipped/genome.fa"
+fasta = str(base_dir / config["fasta"])
 
 runs = [
     "aviti_hq",
@@ -65,13 +73,13 @@ regions = [
 ]
 
 # G4 motifs from PQSfinder
-# sourcehttps://pqsfinder.fi.muni.cz/hub/hg38/pqsfinder_hg38.gff
-g4_pqsfinder = resources_dir / "G4/pqsfinder_hg38.sort.bed.gz"
+# source https://pqsfinder.fi.muni.cz/hub/hg38/pqsfinder_hg38.gff
+g4_pqsfinder = str(base_dir / config["g4_bed_gz"])
 
 # Containers
-avidity = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/envs/avidity.sif"
-samtools = "/vulpes/common/ngi/containers/biocontainers/singularity-samtools-1.19.2--h50ea8bc_0.img"
-bedtools_container = "/vulpes/ngi/containers/biocontainers/singularity-bedtools-2.30.0--hc088bd4_0.img"
+avidity = str(config["containers"]["avidity"])
+samtools = config["containers"]["samtools"]
+bedtools_container = config["containers"]["bedtools"]
 
 
 def get_bed(wildcards):
@@ -79,7 +87,7 @@ def get_bed(wildcards):
         return g4_pqsfinder
     elif "random" in wildcards.region:
         return f"{wildcards.region}.bed.gz"
-    return resources_dir / f"GRCh38@all/LowComplexity/{wildcards.region}.bed.gz"
+    return stratifications_dir / f"LowComplexity/{wildcards.region}.bed.gz"
 
 
 def get_cram(wildcards):
@@ -144,7 +152,7 @@ rule get_overlapping_reads:
         " -L {input.bed}"
         " -o {output.bam}"
         " {input.cram}"
-	" chr20"
+	    " chr20"
         " && "
         "samtools index {output.bam}"
 
@@ -164,7 +172,7 @@ rule stack_reads:
         prefix = "{run}/{cell}/{region}",
         homopolymer = lambda wc: "--homopolymer" if "homopolymer" in wc.region  else "",
         slop = lambda wc: 5 if "slop" in wc.region else 0,
-        script_path = code_dir / "AvidityManuscript2023/python/stack_reads_by_interval.py",
+        script_path = repo_dir / "python/stack_reads_by_interval.py",
         # Decrease analysis rate for short homopolymer regions as they are common
         rate = lambda wc: "--rate 0.1" if "homopolymer_4to6" in wc.region else ""
     shell:

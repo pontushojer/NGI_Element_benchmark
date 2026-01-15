@@ -1,0 +1,13 @@
+input: samples.csv
+outdir: outdir
+seq_platform: ELEMENT
+seq_center: Element_Biosciences_San_Diego
+trim_fastq: true
+#tools: deepvariant
+aligner: bwa-mem
+no_gatk_spark: true
+fasta: ./../../../resources/GRCh38_GIABv3/unbgzipped/genome.fa
+fasta_fai: ./../../../resources/GRCh38_GIABv3/unbgzipped/genome.fa.fai
+igenomes_ignore: true
+email: pontus.hojer@scilifelab.se
+skip_tools: baserecalibrator,fastqc

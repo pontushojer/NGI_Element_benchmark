@@ -1,8 +1,27 @@
+"""
+Snakemake workflow to assess similiarity between predicted G4 sites and GIAB stratifications
+
+load modules:
+
+    ml bioinfo-tools snakemake python/3.12.7
+
+sbatch command:
+    
+    sbatch -A ngi2016004 -J g4 -n 24 -p core -t 5:00:00 --wrap "snakemake -p -j 24 --use-singularity -k --rerun-incomplete" --mail-user phojer@kth.se --mail-type ALL
+"""
+
 from pathlib import Path
 import pandas as pd
+from snakemake.utils import min_version
 
-stratification_dir = Path("../../resources/GRCh38@all")
-stratification_tsv = stratification_dir / "GRCh38-all-stratifications.tsv"
+min_version("8.20.1")
+
+configfile: "../../snakemake_config.yaml"
+
+base_dir = Path(config["base_dir"])
+
+stratification_dir = base_dir / config["stratifications_dir"]
+stratification_tsv = base_dir / config["stratifications_all"] 
 
 stratification_df = pd.read_csv(stratification_tsv, sep="\t", names=["name", "relative_path"])
 stratification_df["path"] = stratification_dir / stratification_df["relative_path"]
@@ -10,8 +29,9 @@ stratification_df.set_index("name", inplace=True)
 
 stratifications = stratification_df.index.to_list()
 
-g4 = "../../resources/G4/pqsfinder_hg38.bed"
-genome = "../../resources/GRCh38_GIABv3/GRCh38_GIABv3.genome"
+g4 = base_dir / config["g4_bed"]
+
+genome = base_dir / config["genome"]
 
 rule all:
     input:
@@ -30,5 +50,6 @@ rule fisher:
     params:
         bedb = lambda wc: get_stratification_path(wc.strat),
         genome = genome
+    singularity: config["containers"]["bedtools_2.3.11"]
     shell:
         "bedtools fisher -f 0.5 -r -a {input.beda} -b {params.bedb} -g {params.genome} > {output.tsv}"

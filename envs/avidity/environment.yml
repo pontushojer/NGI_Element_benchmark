@@ -1,0 +1,25 @@
+name: AvidityManuscript2023
+
+channels:
+  - conda-forge
+  - bioconda
+
+dependencies:
+  - python>=3.9
+  - pip
+  - pysam
+  - numpy
+  - s3path
+  - pybedtools
+  - pandas
+  - tqdm
+  - matplotlib
+  - seaborn
+  - openpyxl
+  - pysam
+  - boto3
+  - rich
+  - jupyter
+  - jupyterlab
+  - jupytext
+  - jupyterlab_code_formatter

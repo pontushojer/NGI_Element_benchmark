@@ -1,9 +1,9 @@
-# This file was produced by samtools stats (1.21+htslib-1.21) and can be plotted using plot-bamstats
+# This file was produced by samtools stats (1.19.2+htslib-1.19.1) and can be plotted using plot-bamstats
 # This file contains statistics for all reads.
-# The command line was:  stats -r /Users/pontus.hojer/analysis/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/GRCh38_GIABv3_no_alt_analysis_set_maskedGRC_decoys_MAP2K3_KMT2C_KCNJ18.fasta.gz -
+# The command line was:  stats -r /vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa -
 # CHK, Checksum	[2]Read Names	[3]Sequences	[4]Qualities
 # CHK, CRC32 of reads which passed filtering followed by addition (32bit overflow)
-CHK	51d77300	c35de5c5	6a1b39da
+CHK	6892f870	6d9c667a	a011954a
 # Summary Numbers. Use `grep ^SN | cut -f 2-` to extract this part.
 SN	raw total sequences:	0	# excluding supplementary and secondary reads
 SN	filtered sequences:	0
@@ -19,7 +19,7 @@ SN	reads paired:	0	# paired-end technology bit set
 SN	reads duplicated:	0	# PCR or optical duplicate bit set
 SN	reads MQ0:	0	# mapped and MQ=0
 SN	reads QC failed:	0
-SN	non-primary alignments:	1
+SN	non-primary alignments:	2
 SN	supplementary alignments:	0
 SN	total length:	0	# ignores clipping
 SN	total first fragment length:	0	# ignores clipping

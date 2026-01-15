@@ -11,13 +11,21 @@ sbatch command:
     sbatch -A ngi2016004 -J vcb -n 8 -p core -t 1-00:00:00 --wrap "snakemake -p -j 12 --use-singularity -k" --mail-user phojer@kth.se --mail-type ALL
 """
 
+from pathlib import Path
+from snakemake.utils import min_version
 
-fasta = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa"
+min_version("8.20.1")
 
-stratification_dir = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38@all/"
-stratification = stratification_dir + "GRCh38-all-stratifications.tsv"
+configfile: "../../snakemake_config.yaml"
 
-pacbio_data = "/vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/data/wgs/PacBio_HiFi_BAMs"
+base_dir = Path(config["base_dir"])
+
+fasta = str(base_dir / config["fasta"])
+
+stratification_dir = base_dir / config["stratifications_dir"]
+stratification = str(stratification_dir / "GRCh38-all-stratifications.tsv")
+
+pacbio_data = str(base_dir / "data/wgs/PacBio_HiFi_BAMs")
 
 bam_paths = {
     "OPM2": f"{pacbio_data}/pr_023_001_OPM2.bam",
@@ -42,7 +50,7 @@ cells = [
 downsample_coverages = [10, 15, 20, 25, 30, 40, 50]
 
 # Coverage for chr20 taken from *md.mosdepth.summary.txt in dir
-# analysisnfcore_sarek/<run>/outdir/reports/mosdepth/<cell>/<cell>.md.mosdepth.summary.txt
+# analysis/nfcore_sarek_rerun/<run>/outdir/reports/mosdepth/<cell>/<cell>.md.mosdepth.summary.txt
 # used command: grep -r ^chr20_region nfcore_sarek_rerun/*/outdir/reports/mosdepth/*/*.md.mosdepth.summary.txt | cut -f 1,4
 coverage_data = {
     "aviti_hq": {
@@ -67,17 +75,16 @@ coverage_data = {
 
 # Arguments
 deepvariant_args = "--model_type WGS --regions 'chr20'"
-happy_args_truth = "--location chr20 --preprocess-truth --engine=vcfeval --pass-only"
 happy_args = "--location chr20 --engine=vcfeval --roc DP --preprocess-truth"
 
 # Containers
-deepvariant_container = "/vulpes/common/ngi/containers/biocontainers/nf-core-deepvariant-1.5.0.img"
-happy_container = "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/hap.py_latest.sif"
-rtg_container = "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/rtg-tools_realtimegenomics_3.12.1.sif"
-bcftools_container = "/vulpes/ngi/containers/biocontainers/singularity-bcftools-1.18--h8b25389_0.img"
-bedtools_container = "/vulpes/ngi/containers/biocontainers/singularity-bedtools-2.30.0--hc088bd4_0.img"
-mosdepth_container = "/vulpes/ngi/containers/biocontainers/singularity-mosdepth-0.3.8--hd299d5a_0.img"
-multiqc_container = "/vulpes/common/ngi/containers/biocontainers/singularity-multiqc-1.21--pyhdfd78af_0.img"
+deepvariant_container = config["containers"]["deepvariant"]
+happy_container = config["containers"]["happy"]
+rtg_container = config["containers"]["rtgtools"]
+bcftools_container = config["containers"]["bcftools"]
+bedtools_container = config["containers"]["bedtools"]
+mosdepth_container = config["containers"]["mosdepth"]
+multiqc_container = config["containers"]["multiqc"]
 
 def possible_vcfs(runs, cells):
     # Generate all possible combinations of runs, cells and coverages
@@ -151,7 +158,7 @@ rule deepvariant_downsampled:
         #crai = "../nfcore_sarek/{run}/outdir/preprocessing/markduplicates/{cell}/{cell}.md.cram.crai",
     output:
         vcf = "deepvariant/{run}/{cell}_{coverage}X_chr20.vcf.gz"
-    singularity: "/vulpes/common/ngi/containers/biocontainers/nf-core-deepvariant-1.5.0.img"
+    singularity: deepvariant_container
     log: "deepvariant/{run}/{cell}_{coverage}X_chr20.vcf.gz.log"
     params:
         fasta = fasta,
@@ -465,12 +472,10 @@ rule pacbio_low_confidence_stratifications:
     # instead of 10bp+ as this is the closest stratification included in v3.5.
     # - https://www.nature.com/articles/s41467-020-18564-9#Sec8
     input:
-        stratification_dir + "OtherDifficult/GRCh38_contigs_lt500kb.bed.gz",
-        #stratification_dir + "LowComplexity/GRCh38_AllTandemRepeats_ge10001bp_slop5.bed.gz",
-        #stratification_dir + "SegmentalDuplications/GRCh38_segdups_gt10kb.bed.gz",
-        stratification_dir + "LowComplexity/GRCh38_SimpleRepeat_imperfecthomopolge11_slop5.bed.gz",
-        stratification_dir + "LowComplexity/GRCh38_SimpleRepeat_homopolymer_ge12_slop5.bed.gz",
-        stratification_dir + "OtherDifficult/GRCh38_gaps_slop15kb.bed.gz",
+        str(stratification_dir / "OtherDifficult/GRCh38_contigs_lt500kb.bed.gz"),
+        str(stratification_dir / "LowComplexity/GRCh38_SimpleRepeat_imperfecthomopolge11_slop5.bed.gz"),
+        str(stratification_dir / "LowComplexity/GRCh38_SimpleRepeat_homopolymer_ge12_slop5.bed.gz"),
+        str(stratification_dir / "OtherDifficult/GRCh38_gaps_slop15kb.bed.gz"),
     output:
         bed = "highconf/pacbio/low_confidence.bed"
     singularity: bedtools_container
@@ -519,7 +524,7 @@ rule pacbio_pbsv_regions_expand_tr_and_hp:
     # https://github.com/genome-in-a-bottle/genome-stratifications/blob/badb7b3cb77acc80a888e056a6bfe5e957e1d3fa/GRCh37/GenomeSpecific/HG007_GRCh37_CNV_exclusion_bed_generation.ipynb#L19
     input:
         bed = "highconf/pacbio/{cell}.sv_gt49bp_slop50.bed",
-        lc_bed = stratification_dir + "LowComplexity/GRCh38_AllTandemRepeatsandHomopolymers_slop5.bed.gz"
+        lc_bed = str(stratification_dir / "LowComplexity/GRCh38_AllTandemRepeatsandHomopolymers_slop5.bed.gz")
     output:
         bed = "highconf/pacbio/{cell}.sv_slop25percent.bed"
     singularity: bedtools_container
@@ -604,7 +609,7 @@ rule subtract_overlapping_tr_and_hps:
     # source: https://github.com/jzook/genome-data-integration/blob/cfc5e261d9fc98cccd3de4648fe3805f256f2f1e/NISTv4.2.1/DNAnexusApplets/nist-integration-v4.2.1-anyref/resources/home/dnanexus/pipeline_runner.py#L293
     input:
         bed = "highconf/{cell}_confident_regions_intersect.bed",
-        tr_hp = stratification_dir + "LowComplexity/GRCh38_AllTandemRepeatsandHomopolymers_slop5.bed.gz"
+        tr_hp = str(stratification_dir / "LowComplexity/GRCh38_AllTandemRepeatsandHomopolymers_slop5.bed.gz")
     output:
         bed = "highconf/{cell}_confident_regions_intersect.tr_hp.bed"
     singularity: bedtools_container
@@ -649,7 +654,7 @@ rule happy_pacbio:
         args = happy_args,
         pwd = os.getcwd()
     shell:
-        "/opt/hap.py/bin/hap.py"
+        "hap.py"
         " --stratification {params.stratification}"
         " --reference {params.ref}"
         " --report-prefix {params.prefix}"

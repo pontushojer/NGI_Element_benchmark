@@ -1,9 +1,9 @@
-# This file was produced by samtools stats (1.21+htslib-1.21) and can be plotted using plot-bamstats
+# This file was produced by samtools stats (1.19.2+htslib-1.19.1) and can be plotted using plot-bamstats
 # This file contains statistics for all reads.
-# The command line was:  stats -r /Users/pontus.hojer/analysis/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/GRCh38_GIABv3_no_alt_analysis_set_maskedGRC_decoys_MAP2K3_KMT2C_KCNJ18.fasta.gz -
+# The command line was:  stats -r /vulpes/proj/ngis/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/resources/GRCh38_GIABv3/unbgzipped/genome.fa -
 # CHK, Checksum	[2]Read Names	[3]Sequences	[4]Qualities
 # CHK, CRC32 of reads which passed filtering followed by addition (32bit overflow)
-CHK	80990fa8	c4ad4a19	af75af47
+CHK	38496507	b90fa53c	2fe79e07
 # Summary Numbers. Use `grep ^SN | cut -f 2-` to extract this part.
 SN	raw total sequences:	0	# excluding supplementary and secondary reads
 SN	filtered sequences:	0
@@ -20,16 +20,16 @@ SN	reads duplicated:	0	# PCR or optical duplicate bit set
 SN	reads MQ0:	0	# mapped and MQ=0
 SN	reads QC failed:	0
 SN	non-primary alignments:	0
-SN	supplementary alignments:	4
+SN	supplementary alignments:	13
 SN	total length:	0	# ignores clipping
 SN	total first fragment length:	0	# ignores clipping
 SN	total last fragment length:	0	# ignores clipping
 SN	bases mapped:	0	# ignores clipping
-SN	bases mapped (cigar):	185	# more accurate
+SN	bases mapped (cigar):	676	# more accurate
 SN	bases trimmed:	0
 SN	bases duplicated:	0
-SN	mismatches:	3	# from NM fields
-SN	error rate:	1.621622e-02	# mismatches / bases mapped (cigar)
+SN	mismatches:	11	# from NM fields
+SN	error rate:	1.627219e-02	# mismatches / bases mapped (cigar)
 SN	average length:	0
 SN	average first fragment length:	0
 SN	average last fragment length:	0
@@ -372,9 +372,14 @@ ID	1	1	0
 # Indels per cycle. Use `grep ^IC | cut -f 2-` to extract this part. The columns are: cycle, number of insertions (fwd), .. (rev) , number of deletions (fwd), .. (rev)
 IC	6	1	0	0	0
 # Coverage distribution. Use `grep ^COV | cut -f 2-` to extract this part.
-COV	[1-1]	1	184
+COV	[1-1]	1	477
+COV	[2-2]	2	99
 # GC-depth. Use `grep ^GCD | cut -f 2-` to extract this part. The columns are: GC%, unique sequence percentiles, 10th, 25th, 50th, 75th and 90th depth percentile
-GCD	0.0	40.000	0.000	0.000	0.000	0.000	0.000
-GCD	0.4	60.000	0.000	0.000	0.000	0.000	0.000
-GCD	38.0	80.000	0.000	0.000	0.000	0.000	0.000
-GCD	41.0	100.000	0.000	0.000	0.000	0.000	0.000
+GCD	0.0	18.182	0.000	0.000	0.000	0.000	0.000
+GCD	0.5	27.273	0.000	0.000	0.000	0.000	0.000
+GCD	38.0	45.455	0.000	0.000	0.000	0.000	0.000
+GCD	39.0	63.636	0.000	0.000	0.000	0.000	0.000
+GCD	41.0	72.727	0.000	0.000	0.000	0.000	0.000
+GCD	46.0	81.818	0.000	0.000	0.000	0.000	0.000
+GCD	49.0	90.909	0.000	0.000	0.000	0.000	0.000
+GCD	50.0	100.000	0.000	0.000	0.000	0.000	0.000
