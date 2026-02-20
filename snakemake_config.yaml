@@ -25,6 +25,7 @@ mosdepth_d4: "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/mosdepth_d4" # D
 
 # Containers
 containers:
+  avidity: "/proj/ngi2016004/private/strategic_proj/SR_23_02_Element_vs_Illumina/envs/avidity.sif"
   bcftools: "/vulpes/ngi/containers/biocontainers/singularity-bcftools-1.18--h8b25389_0.img"
   bedtools_2.31.1: "/vulpes/proj/ngis/ngi2016004/private/pontus/tools/singularity-bedtools-2.31.1--hf5e1c6e_2.img" 
   bedtools: "/vulpes/ngi/containers/biocontainers/singularity-bedtools-2.30.0--hc088bd4_0.img"

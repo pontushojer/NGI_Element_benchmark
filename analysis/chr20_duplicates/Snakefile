@@ -123,5 +123,6 @@ rule duplicate_stats:
     shell:
         "/opt/conda/envs/AvidityManuscript2023/bin/python"
         " {params.script}"
+        " --dist-optical 100"
         " --prefix {params.prefix}"
         " {input.bam}"

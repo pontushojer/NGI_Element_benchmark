@@ -29,6 +29,7 @@ fasta = str(base_dir / config["fasta"])
 # It also adds G4 motifs from pqsfinder v2.0.1 (https://pqsfinder.fi.muni.cz/hub/hg38/pqsfinder_hg38.bed)
 stratification_tsv = base_dir / config["stratifications_select"]
 
+
 runs=["aviti_hq", "aviti_ngi", "xplus_sns"]
 
 cells = [
@@ -245,4 +246,4 @@ rule aggregate_histograms:
         tsv = "histogram/{run}_{cell}.tsv",
         tsv2 = "histogram/{run}_{cell}.normalized.tsv"
     singularity: pandas
-    script: "aggregate_histograms.py"   
+    script: "../../scripts/aggregate_histograms.py"   

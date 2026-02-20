@@ -38,39 +38,24 @@ cells = [
 
 regions = [
     "GRCh38_SimpleRepeat_diTR_10to49_slop5",
-    "GRCh38_SimpleRepeat_diTR_50to149_slop5",
-    #"GRCh38_SimpleRepeat_diTR_ge150_slop5",
-    "GRCh38_SimpleRepeat_homopolymer_4to6_AT_slop5",
-    "GRCh38_SimpleRepeat_homopolymer_4to6_GC_slop5",
-    "GRCh38_SimpleRepeat_homopolymer_4to6_slop5",
-    "GRCh38_SimpleRepeat_homopolymer_7to11_AT_slop5",
+    #"GRCh38_SimpleRepeat_homopolymer_7to11_AT_slop5",
     "GRCh38_SimpleRepeat_homopolymer_7to11_GC_slop5",
     "GRCh38_SimpleRepeat_homopolymer_7to11_slop5",
-    "GRCh38_SimpleRepeat_homopolymer_ge12_AT_slop5",
+    #"GRCh38_SimpleRepeat_homopolymer_ge12_AT_slop5",
     "GRCh38_SimpleRepeat_homopolymer_ge12_GC_slop5",
     "GRCh38_SimpleRepeat_homopolymer_ge12_slop5",
-    "GRCh38_SimpleRepeat_homopolymer_ge21_AT_slop5",
-    "GRCh38_SimpleRepeat_homopolymer_ge21_GC_slop5",
-    "GRCh38_SimpleRepeat_homopolymer_ge21_slop5",
-    "GRCh38_SimpleRepeat_imperfecthomopolge11_AT_slop5",
+    #"GRCh38_SimpleRepeat_imperfecthomopolge11_AT_slop5",
     "GRCh38_SimpleRepeat_imperfecthomopolge11_GC_slop5",
     "GRCh38_SimpleRepeat_imperfecthomopolge11_slop5",
-    "GRCh38_SimpleRepeat_imperfecthomopolge21_AT_slop5",
-    "GRCh38_SimpleRepeat_imperfecthomopolge21_GC_slop5",
-    "GRCh38_SimpleRepeat_imperfecthomopolge21_slop5",
     "GRCh38_SimpleRepeat_quadTR_19to49_slop5",
-    "GRCh38_SimpleRepeat_quadTR_50to149_slop5",
-    #"GRCh38_SimpleRepeat_quadTR_ge150_slop5",
     "GRCh38_SimpleRepeat_triTR_14to49_slop5",
-    "GRCh38_SimpleRepeat_triTR_50to149_slop5",
-    #"GRCh38_SimpleRepeat_triTR_ge150_slop5",
     ## CUSTOM REGIONS ##
     "G4_pqsfinder",
-    "random_l50_n1000000", 
     "random_l30_n1000000", # Control for G4_pqsfinder
     "random_l20_n1000000", # Control for homopolymer_ge12
-    "random_l10_n1000000", 
 ]
+
+chr1toX = [f"chr{c}" for c in list(range(1,23))+ ["X"]]
 
 # G4 motifs from PQSfinder
 # source https://pqsfinder.fi.muni.cz/hub/hg38/pqsfinder_hg38.gff
@@ -133,10 +118,37 @@ rule get_random:
         "gzip -c > {output.bed}"
 
 
+rule subset_regions:
+    input:
+        bed = get_bed
+    output:
+        bed = temp("regions/{region}.bed")
+    params:
+        n = 10_000
+    shell:
+        "zcat {input.bed}"
+        " | "
+        "shuf -n {params.n} --random-source=<(yes 100)"
+        "> {output}"
+
+
+rule sort_n_gzip_regions:
+    input:
+        bed = "regions/{region}.bed",
+        genome = "GRCh38.genome"
+    output:
+        bed = "regions/{region}.bed.gz"
+    singularity: bedtools_container
+    shell:
+        "bedtools sort -i {input.bed} -g {input.genome}"
+        " | "
+        "gzip -c > {output}"
+
+
 rule get_overlapping_reads:
     input:
         unpack(get_cram),
-        bed = get_bed
+        bed = "regions/{region}.bed.gz"
     output:
         bam = temp("{run}/{cell}/{region}.bam"),
         bai = temp("{run}/{cell}/{region}.bam.bai")
@@ -152,7 +164,6 @@ rule get_overlapping_reads:
         " -L {input.bed}"
         " -o {output.bam}"
         " {input.cram}"
-	    " chr20"
         " && "
         "samtools index {output.bam}"
 
@@ -161,31 +172,38 @@ rule stack_reads:
     input:
         bam = "{run}/{cell}/{region}.bam",
         bai = "{run}/{cell}/{region}.bam.bai",
-        bed = get_bed
+        bed = "regions/{region}.bed.gz"
     output:
-        out1 = temp(touch("{run}/{cell}/{region}.interval-error.tsv")), # This is quite large
-        out2 = "{run}/{cell}/{region}.offset-error.tsv"
-    log: "{run}/{cell}/{region}.log"
+        out1 = temp(touch("{run}/{cell}/{region}/{chr}.interval-error.tsv")), # This is quite large
+        out2 = touch("{run}/{cell}/{region}/{chr}.offset-error.tsv")
+    log: "{run}/{cell}/{region}/{chr}.log"
     singularity: avidity
     threads: 2
     params:
-        prefix = "{run}/{cell}/{region}",
+        prefix = "{run}/{cell}/{region}/{chr}",
         homopolymer = lambda wc: "--homopolymer" if "homopolymer" in wc.region  else "",
         slop = lambda wc: 5 if "slop" in wc.region else 0,
         script_path = repo_dir / "python/stack_reads_by_interval.py",
         # Decrease analysis rate for short homopolymer regions as they are common
-        rate = lambda wc: "--rate 0.1" if "homopolymer_4to6" in wc.region else ""
+        #rate = lambda wc: "--rate 0.1" if "homopolymer_4to6" in wc.region else ""
     shell:
         "/opt/conda/envs/AvidityManuscript2023/bin/python {params.script_path}"
         " --bam {input.bam}"
         " --bed {input.bed}"
         " -o {params.prefix}"
-        " --chr chr20"
+        " --chr {wildcards.chr}"
         " --slop {params.slop}"
         " {params.homopolymer}"
-        " {params.rate}"
+        #" {params.rate}"
         " &> {log}"
 
+rule combine_errors:
+    input:
+        expand("{{run}}/{{cell}}/{{region}}/{chr}.{{error}}.tsv", chr=chr1toX)
+    output:
+        tsv = "{run}/{cell}/{region}.{error}.tsv"
+    shell:
+        "cat {input} > {output.tsv}"
 
 rule gzip_tsv:
     input:

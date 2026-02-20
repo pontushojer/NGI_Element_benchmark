@@ -1,7 +1,7 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17302040.svg)](https://doi.org/10.5281/zenodo.17302040)
 # Element vs Illumina benchmark
 
-Project: SR_23_02
+ [Project: SR_23_02]:#
 
 This repository contains resources related to the article:
 
@@ -32,18 +32,18 @@ Jupyter notebooks with workflow folder (Snakemake or Nextflow/nf-core) used to g
 | Figure 1b | [duplicates.ipynb](notebooks/duplicates.ipynb) | `analysis/nfcore_sarek_rerun` |
 | Figure 1c | [samtools_stats_all.ipynb](notebooks/samtools_stats_all.ipynb) | `analysis/nfcore_sarek_rerun` |
 | Figure 1d | [samtools_stats_all.ipynb](notebooks/samtools_stats_all.ipynb) | `analysis/nfcore_sarek_rerun` |
-| Figure 1e | [differential_coverage.ipynb](notebooks/differential_coverage.ipynb) | `analysis/differential_coverage` |
-| Figure 1f | [variant_calling_benchmarks.ipynb](notebooks/variant_calling_benchmarks.ipynb) | `analysis/variant_call_benchmarking` |
-| Figure 1g | [variant_calling_benchmarks.ipynb](notebooks/variant_calling_benchmarks.ipynb) | `analysis/variant_call_benchmarking` |
-| Figure 1h | [variant_calling_benchmarks.ipynb](notebooks/variant_calling_benchmarks.ipynb) | `analysis/variant_call_benchmarking` |
-| Figure 2a | [samtools_stats_per_read.ipynb](notebooks/samtools_stats_per_read.ipynb) | `analysis/error_rate` |
-| Figure 2b | [fraguracy_error_rate.ipynb](notebooks/fraguracy_error_rate.ipynb) | `analysis/error_rate` |
-| Figure 2c | [samtools_stats_per_read_insert_size.ipynb](notebooks/samtools_stats_per_read_insert_size.ipynb) | `analysis/fragment_length_qual_dependence` |
-| Figure 2d | [compare_read_stack_multiple.ipynb](notebooks/compare_read_stack_multiple.ipynb) | `analysis/stack_reads` |
-| Figure 3b | [g4_soft_clipped.ipynb](notebooks/g4_soft_clipped.ipynb) | `analysis/soft_clipped` |
-| Figure 3c | [stratification_error_rate.ipynb](notebooks/stratification_error_rate.ipynb) | `analysis/stratification_error_rate` |
-| Figure 3d | [compare_read_stack_multiple.ipynb](notebooks/compare_read_stack_multiple.ipynb) | `analysis/stack_reads`|
-| Figure 3e | [stratification_error_rate.ipynb](notebooks/stratification_error_rate.ipynb) | `analysis/stratification_error_rate` | 
+| Figure 2a | [differential_coverage.ipynb](notebooks/differential_coverage.ipynb) | `analysis/differential_coverage` |
+| Figure 2b | [variant_calling_benchmarks_allchr.ipynb](notebooks/variant_calling_benchmarks_allchr.ipynb) | `analysis/variant_call_benchmarking_allchr` |
+| Figure 2c | [variant_calling_benchmarks_allchr.ipynb](notebooks/variant_calling_benchmarks.ipynb) | `analysis/variant_call_benchmarking_allchr` |
+| Figure 2d | [variant_calling_benchmarks_allchr.ipynb](notebooks/variant_calling_benchmarks.ipynb) | `analysis/variant_call_benchmarking_allchr` |
+| Figure 3a | [samtools_stats_per_read.ipynb](notebooks/samtools_stats_per_read.ipynb) | `analysis/error_rate` |
+| Figure 3b | [fraguracy_error_rate.ipynb](notebooks/fraguracy_error_rate.ipynb) | `analysis/error_rate` |
+| Figure 3c | [samtools_stats_per_read_insert_size.ipynb](notebooks/samtools_stats_per_read_insert_size.ipynb) | `analysis/fragment_length_qual_dependence` |
+| Figure 3d | [compare_read_stack_multiple.ipynb](notebooks/compare_read_stack_multiple.ipynb) | `analysis/stack_reads` |
+| Figure 4b | [g4_soft_clipped.ipynb](notebooks/g4_soft_clipped.ipynb) | `analysis/soft_clipped` |
+| Figure 4c | [stratification_error_rate.ipynb](notebooks/stratification_error_rate.ipynb) | `analysis/stratification_error_rate` |
+| Figure 4d | [compare_read_stack_multiple.ipynb](notebooks/compare_read_stack_multiple.ipynb) | `analysis/stack_reads`|
+| Figure 4e | [stratification_error_rate.ipynb](notebooks/stratification_error_rate.ipynb) | `analysis/stratification_error_rate` | 
 | Supplementary Table 2 | | `analysis/illumina_dups_per_lane` |
 | Supplementary Table 5 | [g4_overlap.ipynb](notebooks/g4_overlap.ipynb) | `analysis/g4_overlap` |
 | Supplementary Figure 2 | [samtools_stats_all.ipynb](notebooks/samtools_stats_all.ipynb) | `analysis/nfcore_sarek_rerun` |
@@ -76,7 +76,7 @@ To download the short read fastqs there is a bash script `download_fastqs.sh`. I
 bash download_fastqs.sh
 ```
 
-The script will download FASTQs in the same folder structure to be able to run nf-core sarek.
+The script will download FASTQs in the same folder structure to be able to run nf-core sarek. Information about the libraries and their indexing can be found here: [`libraries.md`](libraries.md)
 
 ### PacBio BAM download
 

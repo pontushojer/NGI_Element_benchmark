@@ -119,8 +119,7 @@ def main(args):
             stats[f"Pair combos {ptype}"] += 1
 
             if distance != float("inf"):
-                distance_by_10 = 10 * (distance // 10)
-                dups_by_dist[distance_by_10][complementary] += 1 
+                dups_by_dist[int(distance)][complementary] += 1 
 
     for k in list(stats):
         if k.startswith("Pair combos "):
@@ -144,7 +143,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Analyze duplicate types.")
     parser.add_argument("bam", type=str, help="Input BAM path with DI:i tags from MarDuplicates.")
-    parser.add_argument("-d", "--dist-optical", default=2500,
+    parser.add_argument("-d", "--dist-optical", default=2500, type=int,
                         help="Physical distance above which reads are consider optical duplicates. "
                              "See https://gatk.broadinstitute.org/hc/en-us/articles/360036862931-MarkDuplicates-Picard. "
                               "Default: %(default)s (recommended for patterned FCs)")
