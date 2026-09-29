@@ -5,11 +5,11 @@
 
 This repository contains resources related to the article:
 
->*Whole genome sequencing with AVITI and NovaSeq X Plus reveals comparable performance with contextual biases*
+>*Whole-genome sequencing with AVITI and NovaSeq X Plus reveals comparable performance with contextual biases*
 
 >Pontus Höjer, Johannes Alneberg, Pär Lundin, Tom Martin, Julia Hauenstein, Helena Fällmar, Magnus Lindell, Christian Natanaelsson, Susana Häggqvist, Adam Ameur, Jessica Nordlund, Robert Månsson Welinder
 
->bioRxiv 2025.10.10.681584; doi: https://doi.org/10.1101/2025.10.10.681584
+>NAR Genomics and Bioinformatics, Volume 8, Issue 2, June 2026, lqag053, https://doi.org/10.1093/nargab/lqag053
 
 Please use this to cite this work.
 
